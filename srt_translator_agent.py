@@ -26,6 +26,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 import logging
 
+from dotenv import load_dotenv
+load_dotenv()
+
 # 配置日志
 logging.basicConfig(
     level=logging.INFO,
@@ -96,8 +99,17 @@ class SRTTranslatorAgent:
         if self.base_url:
             llm_kwargs["base_url"] = self.base_url
         
+        # 调试：输出LLM初始化参数
+        logger.info(f"🔧 LLM初始化参数: {llm_kwargs}")
+        
         # 初始化LLM
         self.llm = ChatOpenAI(**llm_kwargs)
+        
+        # 调试：验证LLM实际配置
+        logger.info(f"🔍 LLM实际配置:")
+        logger.info(f"   实际模型: {self.llm.model_name}")
+        logger.info(f"   实际API密钥存在: {bool(self.llm.openai_api_key)}")
+        logger.info(f"   实际基础URL: {getattr(self.llm, 'openai_api_base', None) or getattr(self.llm, 'base_url', None)}")
         
         # 初始化LangGraph
         self.workflow = self._build_workflow()
@@ -105,7 +117,8 @@ class SRTTranslatorAgent:
         self.app = self.workflow.compile(checkpointer=self.checkpointer)
         
         logger.info(f"🤖 SRT翻译Agent已初始化:")
-        logger.info(f"   模型: {llm_model}")
+        logger.info(f"   配置模型: {self.llm_model}")
+        logger.info(f"   API基础URL: {self.base_url or '官方OpenAI API'}")
         logger.info(f"   批量大小: {batch_size}")
         logger.info(f"   最大重试: {max_retries}")
     
@@ -236,19 +249,10 @@ class SRTTranslatorAgent:
         return state
     
     def save_result_node(self, state: TranslationState) -> TranslationState:
-        """保存结果节点"""
-        logger.info(f"💾 保存双语SRT文件: {state['output_file']}")
-        
-        try:
-            with open(state['output_file'], 'w', encoding='utf-8') as f:
-                f.write(state['bilingual_content'])
-            
-            logger.info(f"✅ 双语SRT文件已保存: {state['output_file']}")
-            
-        except Exception as e:
-            error_msg = f"文件保存失败: {e}"
-            logger.error(error_msg)
-            state['errors'].append(error_msg)
+        """保存结果节点 - 已在translate_srt中处理文件保存"""
+        logger.info(f"✅ 翻译工作流完成")
+        logger.info(f"📊 总字幕条数: {state['total_entries']}")
+        logger.info(f"📊 翻译进度: {state['translation_progress']:.1%}")
         
         return state
     
@@ -345,6 +349,18 @@ class SRTTranslatorAgent:
         
         return "\n".join(content_lines)
     
+    def _generate_translation_only_content(self, entries: List[SRTEntry]) -> str:
+        """生成纯翻译SRT内容（只包含翻译文本）"""
+        content_lines = []
+        
+        for entry in entries:
+            content_lines.append(str(entry.index))
+            content_lines.append(f"{entry.start_time} --> {entry.end_time}")
+            content_lines.append(entry.translation)
+            content_lines.append("")  # 空行分隔
+        
+        return "\n".join(content_lines)
+
     def translate_srt(self, 
                       input_file: str,
                       output_file: Optional[str] = None,
@@ -362,12 +378,30 @@ class SRTTranslatorAgent:
         Returns:
             str: 输出文件路径
         """
+        # 确保输出目录存在
+        output_dir = Path("srt_file")
+        output_dir.mkdir(exist_ok=True)
+        
         # 生成输出文件名
         if output_file is None:
             input_path = Path(input_file)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_file = str(input_path.parent / f"{input_path.stem}_bilingual_{timestamp}.srt")
-        
+            
+            # 生成三个版本的文件名
+            base_name = input_path.stem
+            self.bilingual_file = str(output_dir / f"{base_name}_bilingual_{timestamp}.srt")
+            self.translation_only_file = str(output_dir / f"{base_name}_translation_{timestamp}.srt")
+            
+            output_file = self.bilingual_file
+        else:
+            # 用户指定了输出文件，同样生成其他版本
+            output_path = Path(output_file)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            base_name = output_path.stem.replace("_bilingual", "").replace("_translation", "")
+            
+            self.bilingual_file = str(output_path.parent / f"{base_name}_bilingual_{timestamp}.srt")
+            self.translation_only_file = str(output_path.parent / f"{base_name}_translation_{timestamp}.srt")
+
         # 初始化状态
         initial_state = TranslationState(
             input_file=input_file,
@@ -394,7 +428,7 @@ class SRTTranslatorAgent:
             result = self.app.invoke(
                 initial_state,
                 config={
-                    "recursion_limit": 100,  # 增加递归限制，解决LangGraph限制问题
+                    "recursion_limit": 1000,  # 增加递归限制，解决LangGraph限制问题
                     "configurable": {"thread_id": f"translation_{int(time.time())}"}
                 }
             )
@@ -406,8 +440,19 @@ class SRTTranslatorAgent:
             else:
                 logger.info("🎉 翻译完成!")
             
-            logger.info(f"📁 双语字幕文件: {result['output_file']}")
-            return result['output_file']
+            # 生成纯翻译版本SRT
+            translation_only_content = self._generate_translation_only_content(result['entries'])
+            with open(self.translation_only_file, 'w', encoding='utf-8') as f:
+                f.write(translation_only_content)
+            
+            # 将双语版本保存到正确的位置
+            with open(self.bilingual_file, 'w', encoding='utf-8') as f:
+                f.write(result['bilingual_content'])
+            
+            logger.info(f"📁 双语字幕文件: {self.bilingual_file}")
+            logger.info(f"📁 翻译字幕文件: {self.translation_only_file}")
+            
+            return self.bilingual_file
             
         except Exception as e:
             logger.error(f"❌ 翻译失败: {e}")
@@ -421,8 +466,8 @@ def main():
     parser.add_argument('-o', '--output', help='输出文件路径')
     parser.add_argument('-s', '--source-lang', default='英文', help='源语言')
     parser.add_argument('-t', '--target-lang', default='中文', help='目标语言')
-    parser.add_argument('-m', '--model', default='gpt-3.5-turbo', 
-                       help='LLM模型')
+    parser.add_argument('-m', '--model', 
+                       help='LLM模型（不指定则从MODEL_NAME环境变量读取）')
     parser.add_argument('-b', '--batch-size', type=int, default=5,
                        help='批量翻译大小')
     parser.add_argument('--api-key', help='OpenAI API密钥')
@@ -441,9 +486,9 @@ def main():
         return 1
     
     try:
-        # 创建翻译Agent
+        # 创建翻译Agent - 只有用户明确指定了model参数才传递，否则传递None让Agent从环境变量读取
         agent = SRTTranslatorAgent(
-            llm_model=args.model,
+            llm_model=args.model,  # 如果用户没指定，这里就是None
             api_key=api_key,
             batch_size=args.batch_size
         )

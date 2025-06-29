@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class AudioToSRT:
     """音频转SRT字幕生成器"""
     
-    def __init__(self, model_size="base", device="cpu", compute_type="float32"):
+    def __init__(self, model_size="small", device="cpu", compute_type="float16"):
         """
         初始化转换器
         
@@ -90,10 +90,15 @@ class AudioToSRT:
         
         # 生成输出文件名（带时间戳避免覆盖）
         if output_file is None:
+            # 创建输出目录
+            output_dir = Path("srt_file")
+            output_dir.mkdir(exist_ok=True)
+            
+            # 生成输出文件名
             audio_path = Path(audio_file)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             base_name = audio_path.stem
-            output_file = audio_path.parent / f"{base_name}_{timestamp}.srt"
+            output_file = output_dir / f"{base_name}_{timestamp}.srt"
         
         try:
             logger.info(f"开始转录音频文件: {audio_file}")

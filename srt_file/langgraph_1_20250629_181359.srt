@@ -1,0 +1,2135 @@
+1
+00:00:00,000 --> 00:00:05,160
+Welcome to our new Line Chain Academy course, Building Amid Agents with Line Graph.
+
+2
+00:00:05,160 --> 00:00:11,160
+Chat is a familiar user interaction pattern for agents, where user request something of an agent,
+
+3
+00:00:11,160 --> 00:00:16,190
+an agent can call various tools, and respond to the user with an output.
+
+4
+00:00:16,190 --> 00:00:21,289
+But there are a lot of tasks for which chat isn't quite appropriate.
+
+5
+00:00:21,289 --> 00:00:26,289
+As an example, many users don't want to actually tell an agent do something.
+
+6
+00:00:26,289 --> 00:00:32,420
+They want an agent to listen passively to certain events and respond to them automatically.
+
+7
+00:00:32,420 --> 00:00:37,420
+Many times we don't want agents to only handle one request at a time.
+
+8
+00:00:37,420 --> 00:00:40,420
+We may want agents to handle many events concurrently.
+
+9
+00:00:40,420 --> 00:00:44,420
+Sometimes we want agents to do work in the background for us,
+
+10
+00:00:44,420 --> 00:00:49,420
+and only notify us at specific points, like when the work has been done,
+
+11
+00:00:49,420 --> 00:00:55,579
+when they need clarification on something, or when they want to notify us about something.
+
+12
+00:00:55,579 --> 00:01:01,609
+And finally, with chat, you typically want the agent to work quickly.
+
+13
+00:01:01,609 --> 00:01:06,829
+But if agents are doing work in the background, it can take much longer.
+
+14
+00:01:06,829 --> 00:01:11,829
+A user isn't waiting around. They're only notified by the agent when appropriate.
+
+15
+00:01:11,829 --> 00:01:16,120
+So this collection of attributes is what we call ambient agents.
+
+16
+00:01:16,120 --> 00:01:21,150
+Now in this course, we're going to build an ambient agent that can handle email,
+
+17
+00:01:21,150 --> 00:01:26,150
+which is a great example of the kind of task you may want agents like this to take on.
+
+18
+00:01:26,150 --> 00:01:31,500
+It's going to build an agent that can effectively manage your email inbox.
+
+19
+00:01:31,500 --> 00:01:38,540
+It will ingest incoming emails and perform actions like draft responses or schedule meetings.
+
+20
+00:01:38,540 --> 00:01:45,659
+Now because these are sensitive tasks, we're going to show how to use human loop to approve certain agent actions.
+
+21
+00:01:46,659 --> 00:01:52,659
+And importantly, we're also going to introduce memory so that the agent learns from our feedback over time.
+
+22
+00:01:52,659 --> 00:01:57,019
+And by the end of this course, you're going to understand all these components
+
+23
+00:01:57,019 --> 00:02:01,019
+and how they can be used generally to build agents, not just that handle email,
+
+24
+00:02:01,019 --> 00:02:04,459
+but they can handle many different types of tasks.
+
+25
+00:02:04,459 --> 00:02:06,459
+So how can we actually build this?
+
+26
+00:02:06,459 --> 00:02:09,659
+Let's take the simplest possible email system.
+
+27
+00:02:09,659 --> 00:02:14,659
+For every incoming email, the assistant produces a response email.
+
+28
+00:02:14,659 --> 00:02:18,689
+Now the assistant can send that response using tool calling,
+
+29
+00:02:18,689 --> 00:02:20,689
+which I'll talk about briefly in a minute.
+
+30
+00:02:20,689 --> 00:02:24,689
+And if you think about the system in terms of agency versus predictability,
+
+31
+00:02:24,689 --> 00:02:29,689
+where agency is the ability for the system to make different decisions and predictability is,
+
+32
+00:02:29,689 --> 00:02:32,689
+simply the predictability decisions the system makes,
+
+33
+00:02:32,689 --> 00:02:35,689
+this would be low agency but high predictability.
+
+34
+00:02:35,689 --> 00:02:41,689
+It will always call a tool to send off an email for every incoming email that it receives.
+
+35
+00:02:41,689 --> 00:02:46,689
+The central concept underpinning this system and agents more broadly is tool calling.
+
+36
+00:02:46,689 --> 00:02:49,689
+Let's imagine we had an email API.
+
+37
+00:02:49,689 --> 00:02:51,689
+This could be the Gmail API as an example.
+
+38
+00:02:51,689 --> 00:02:56,689
+We can turn that into a tool and bind it to an LLM.
+
+39
+00:02:56,689 --> 00:03:04,819
+When we do that binding process, the LLM understands the arguments necessary to actually call that tool.
+
+40
+00:03:04,819 --> 00:03:06,819
+So when it receives a request,
+
+41
+00:03:06,819 --> 00:03:12,039
+it reasons about the request and can make a decision to call the tool,
+
+42
+00:03:12,039 --> 00:03:15,039
+but importantly produces a structured output,
+
+43
+00:03:15,039 --> 00:03:19,039
+which contains the arguments that the tool actually needs.
+
+44
+00:03:19,039 --> 00:03:25,039
+Independently, then, the tool can be executed with those arguments in order to,
+
+45
+00:03:25,039 --> 00:03:27,039
+in this case, send off an email.
+
+46
+00:03:27,039 --> 00:03:33,039
+Now it's important to note that a simple system to always call an email tool is pretty limited.
+
+47
+00:03:33,039 --> 00:03:35,389
+What if we don't want to respond?
+
+48
+00:03:36,550 --> 00:03:42,550
+So there's many different ways people have found to effectively lay out workflows.
+
+49
+00:03:42,550 --> 00:03:47,550
+This is just LLM calls within predefined code paths.
+
+50
+00:03:47,550 --> 00:03:50,650
+That can instrument specific logic.
+
+51
+00:03:50,650 --> 00:03:59,000
+Here's an example where we're put a router prior to that send email tool call.
+
+52
+00:03:59,000 --> 00:04:04,060
+This router then makes decision about whether or not we're going to send the email.
+
+53
+00:04:04,060 --> 00:04:11,060
+If we make a decision to send, we'll then go ahead and proceed to what we just talked about,
+
+54
+00:04:11,060 --> 00:04:15,319
+an LLM with access to an email tool and the email sent.
+
+55
+00:04:15,319 --> 00:04:19,379
+Now if you think about this system, we've bump up the agency a little bit.
+
+56
+00:04:19,379 --> 00:04:21,379
+Now it has the ability to make a decision.
+
+57
+00:04:21,379 --> 00:04:24,959
+It can decide whether or not to respond.
+
+58
+00:04:24,959 --> 00:04:26,959
+And in turn, it's a little bit less predictable.
+
+59
+00:04:26,959 --> 00:04:32,180
+We don't quite know what I'll decide given it an incoming email.
+
+60
+00:04:32,180 --> 00:04:35,220
+Now let's push this even further.
+
+61
+00:04:35,220 --> 00:04:39,220
+Imagine we took that LLM and instead of giving it a single tool right email,
+
+62
+00:04:39,220 --> 00:04:42,220
+we give it a collection of different tools.
+
+63
+00:04:42,220 --> 00:04:49,339
+And every time it called a tool, we just returned the output of that tool call back to the LLM.
+
+64
+00:04:49,339 --> 00:04:54,339
+We'll let the LLM think about what was performed and decide what to do next.
+
+65
+00:04:54,339 --> 00:04:58,569
+We let that proceed in a loop until some termination condition.
+
+66
+00:04:58,569 --> 00:05:00,569
+This very simply is an agent.
+
+67
+00:05:00,569 --> 00:05:05,569
+And as noted, the agency is quite a bit higher than the other two.
+
+68
+00:05:05,569 --> 00:05:10,790
+And one way to visualize that is with the initial system,
+
+69
+00:05:10,790 --> 00:05:17,019
+for every incoming email, it made a single decision to write a response and send it.
+
+70
+00:05:17,019 --> 00:05:25,240
+The agent in contrast can choose any sequence of tool calls given the tools it has access to.
+
+71
+00:05:25,240 --> 00:05:28,240
+So in this case, let's say it had access to three tools.
+
+72
+00:05:28,240 --> 00:05:30,240
+Check calendar schedule meeting, write an email.
+
+73
+00:05:30,240 --> 00:05:32,339
+It can pick any sequence.
+
+74
+00:05:32,339 --> 00:05:34,339
+It wants based upon the email input.
+
+75
+00:05:34,339 --> 00:05:39,339
+Now a very important question is how to think about workflows or his agents.
+
+76
+00:05:39,339 --> 00:05:44,689
+Typically, a good statistic is if you can easily draw the control flow on a whiteboard
+
+77
+00:05:44,689 --> 00:05:48,689
+and it's very easy to numerate in advanced workflows appropriate,
+
+78
+00:05:48,689 --> 00:05:54,100
+and often is lower latency and cost than an agent.
+
+79
+00:05:54,100 --> 00:05:57,100
+But if you actually need more flexible decision making,
+
+80
+00:05:57,100 --> 00:06:01,230
+and you can't quite know until runtime,
+
+81
+00:06:01,230 --> 00:06:04,420
+or in this case, until you receive an email,
+
+82
+00:06:04,420 --> 00:06:07,420
+how you want to respond in terms of tool calls,
+
+83
+00:06:07,420 --> 00:06:09,420
+then an agent is more appropriate.
+
+84
+00:06:09,420 --> 00:06:15,810
+And it's okay to trade off greater reasoning for higher latency and potentially higher cost.
+
+85
+00:06:15,810 --> 00:06:20,810
+Now, line graph comes in because it's a framework of low-level components
+
+86
+00:06:20,810 --> 00:06:26,000
+that lets you flexibly build and combine workflows and agents.
+
+87
+00:06:26,000 --> 00:06:31,129
+Line graph is composed of nodes and edges where nodes are just units of work.
+
+88
+00:06:31,129 --> 00:06:37,259
+There's Python functions or TypeScript code that you control explicitly.
+
+89
+00:06:37,259 --> 00:06:40,290
+So you'll just write those functions as you'll see shortly.
+
+90
+00:06:40,290 --> 00:06:44,579
+And everything happens with the node you have complete control over.
+
+91
+00:06:44,579 --> 00:06:47,639
+Now, edges are just transitions between nodes,
+
+92
+00:06:47,639 --> 00:06:51,639
+which are going to lay out in advance as you build your workflow arrangement.
+
+93
+00:06:51,639 --> 00:06:54,639
+This will dictate the control flow of the application.
+
+94
+00:06:54,639 --> 00:07:01,639
+Now, one benefit of line graph is that because it uses very low-level components,
+
+95
+00:07:01,639 --> 00:07:08,019
+just simply nodes and edges, you can build many different workflows as well as agents very easily.
+
+96
+00:07:08,019 --> 00:07:12,410
+It allows you to kind of move to where you want to sit along this curve.
+
+97
+00:07:12,410 --> 00:07:15,410
+You can build systems that are strictly agents.
+
+98
+00:07:15,410 --> 00:07:17,410
+You can build workflows.
+
+99
+00:07:17,410 --> 00:07:20,410
+You can combine agents and workflows together.
+
+100
+00:07:20,410 --> 00:07:24,439
+Now, one of the things we built into line graph that we found to be very important,
+
+101
+00:07:24,439 --> 00:07:27,439
+in particular, as we'll see here, building an ambient agent,
+
+102
+00:07:27,439 --> 00:07:33,500
+is a persistence layer that enables human and loop and long-term memory.
+
+103
+00:07:33,500 --> 00:07:40,660
+As we'll see, it's important in many cases that agents can pause in a way human feedback.
+
+104
+00:07:40,660 --> 00:07:43,660
+And that's what the persistence layer affords this.
+
+105
+00:07:43,660 --> 00:07:48,759
+Not only that, it also gives us long-term memory.
+
+106
+00:07:48,759 --> 00:07:52,759
+The central idea behind persistence is that you have check pointing.
+
+107
+00:07:52,759 --> 00:07:56,759
+So, as you'll see, when you lay out your graph as a set of nodes,
+
+108
+00:07:56,759 --> 00:08:01,759
+the check pointer will save the state of the application.
+
+109
+00:08:01,759 --> 00:08:06,759
+And if we pause it, that state is available for us to resume from later.
+
+110
+00:08:06,759 --> 00:08:11,430
+Line graph also comes built with an interactive development environment,
+
+111
+00:08:11,430 --> 00:08:15,430
+Line Graph Studio, which you're going to see extensively throughout this course.
+
+112
+00:08:15,430 --> 00:08:18,430
+And it provides an easy on-roam to deployment.
+
+113
+00:08:18,430 --> 00:08:22,430
+And you'll see that we can very easily go from code running in a notebook
+
+114
+00:08:22,430 --> 00:08:24,430
+to a deployable application.
+
+115
+00:08:24,430 --> 00:08:26,980
+Before I actually build in our agent,
+
+116
+00:08:26,980 --> 00:08:30,980
+I want to make sure we understand the fundamentals of Line Graph very clearly
+
+117
+00:08:30,980 --> 00:08:33,980
+and how it works with Langshin and Langsmith.
+
+118
+00:08:34,980 --> 00:08:37,980
+Here's a general schematic where you can see the three together.
+
+119
+00:08:37,980 --> 00:08:43,200
+Langshin provides many integrations that we'll be using, particularly chat models,
+
+120
+00:08:43,200 --> 00:08:49,679
+and some very useful methods for binding tools or structured outputs.
+
+121
+00:08:49,679 --> 00:08:52,679
+Line Graph will be using for agent orchestration.
+
+122
+00:08:52,679 --> 00:08:58,870
+Langsmith remusing for observability, like tracing, as well as evaluation.
+
+123
+00:08:58,870 --> 00:09:02,870
+And as you'll see, these three all play really nicely together,
+
+124
+00:09:02,870 --> 00:09:04,870
+but this is how they're related.
+
+125
+00:09:04,870 --> 00:09:08,289
+Now, chat models are the foundation of LLM applications.
+
+126
+00:09:08,289 --> 00:09:11,480
+They're typically accessed through a chat interface,
+
+127
+00:09:11,480 --> 00:09:13,480
+which takes the list of messages input,
+
+128
+00:09:13,480 --> 00:09:15,480
+the returns and messages output,
+
+129
+00:09:15,480 --> 00:09:20,669
+and Langshin's standard interface for chat models called init chat model,
+
+130
+00:09:20,669 --> 00:09:25,740
+where you can just simply pass the name of your provider and model,
+
+131
+00:09:25,740 --> 00:09:29,740
+as well as any parameters that you want to use.
+
+132
+00:09:29,740 --> 00:09:33,250
+Now, Langshin has some universal methods
+
+133
+00:09:33,250 --> 00:09:36,629
+for accessing chat models.
+
+134
+00:09:36,629 --> 00:09:40,629
+Invoke just passes a single input to the chat model and returns an output.
+
+135
+00:09:40,629 --> 00:09:44,950
+In this case, we can just pass a string and under the hood,
+
+136
+00:09:44,950 --> 00:09:47,950
+it's converted into a chat message and sent in for us.
+
+137
+00:09:47,950 --> 00:09:51,269
+We can see we get a message out.
+
+138
+00:09:51,269 --> 00:09:55,370
+Now, here's the message, and you can see it has this content,
+
+139
+00:09:55,370 --> 00:09:57,370
+as well as response metadata.
+
+140
+00:09:57,370 --> 00:10:00,370
+Now, tools, as mentioned previously,
+
+141
+00:10:00,370 --> 00:10:03,370
+are utilities that can be called by chat models.
+
+142
+00:10:03,370 --> 00:10:06,820
+We can very easily create tools in Langshin
+
+143
+00:10:06,820 --> 00:10:11,820
+from Python functions as an example using this tool decorator.
+
+144
+00:10:11,820 --> 00:10:16,230
+Now, this function is a tool,
+
+145
+00:10:16,230 --> 00:10:20,230
+and when we do this, the tool arguments, as well as description,
+
+146
+00:10:20,230 --> 00:10:22,230
+are automatically inferred.
+
+147
+00:10:22,230 --> 00:10:25,299
+These are things that are going to be passed to the model,
+
+148
+00:10:25,299 --> 00:10:29,299
+so the model knows what this particular tool is expecting.
+
+149
+00:10:29,299 --> 00:10:32,620
+Now, one thing that's very nice is that
+
+150
+00:10:32,620 --> 00:10:35,620
+the chat model interface in Langshin
+
+151
+00:10:35,620 --> 00:10:38,620
+provides some common methods for working with tools.
+
+152
+00:10:38,620 --> 00:10:41,620
+In particular, this bind tools method,
+
+153
+00:10:41,620 --> 00:10:48,960
+we can simply pass a list of tools in some useful parameters.
+
+154
+00:10:48,960 --> 00:10:51,960
+So this tool choice parameter means that the model is enforced
+
+155
+00:10:51,960 --> 00:10:54,960
+to call any available tool that it has.
+
+156
+00:10:54,960 --> 00:10:58,889
+So it will always have to call a tool.
+
+157
+00:10:58,889 --> 00:11:03,889
+Parallel tool calls simply enforces the model calls a single tool at a time.
+
+158
+00:11:03,889 --> 00:11:06,889
+Sometimes models can actually make multiple tool calls at once,
+
+159
+00:11:06,889 --> 00:11:08,889
+and we can control that.
+
+160
+00:11:08,889 --> 00:11:12,340
+So we define our model with tools.
+
+161
+00:11:12,340 --> 00:11:14,340
+We invoke it just like before.
+
+162
+00:11:14,340 --> 00:11:20,370
+In this case, we invoke it with a message that's related to the tool it has,
+
+163
+00:11:20,370 --> 00:11:25,620
+and we can see the tool call itself has the arguments needed
+
+164
+00:11:25,620 --> 00:11:30,909
+to actually run the tool to subject content.
+
+165
+00:11:30,909 --> 00:11:35,909
+We can pass those args directly to our tool right email and just run it,
+
+166
+00:11:35,909 --> 00:11:38,909
+and then we can see our tool was executed.
+
+167
+00:11:38,909 --> 00:11:41,909
+So this is a very important concept to understand.
+
+168
+00:11:41,909 --> 00:11:44,070
+You can bind tools to LLMs.
+
+169
+00:11:44,070 --> 00:11:46,070
+LLMs can call tools.
+
+170
+00:11:46,070 --> 00:11:50,070
+Calling tools simply means that LLMs produce a structured output of arguments
+
+171
+00:11:50,070 --> 00:11:52,070
+necessary to actually run the tool,
+
+172
+00:11:52,070 --> 00:11:55,070
+and then the tool can be independently run.
+
+173
+00:11:55,070 --> 00:11:58,070
+This is really the foundational component for building agents.
+
+174
+00:11:58,070 --> 00:12:03,070
+And what we see above illustrates this simple flow that we saw before.
+
+175
+00:12:03,070 --> 00:12:07,649
+We bind a single send email tool to an LLMs,
+
+176
+00:12:07,649 --> 00:12:12,649
+and enforce it to call that tool when responding to incoming emails or requests.
+
+177
+00:12:12,649 --> 00:12:17,779
+Now as discussed, workflows and agents really extend from this.
+
+178
+00:12:17,779 --> 00:12:23,779
+In case of workflows, we can embed LLMs calls in predefined code paths.
+
+179
+00:12:23,779 --> 00:12:28,779
+As we see here, with a router prior to our LLMs calls our email tool.
+
+180
+00:12:28,779 --> 00:12:31,779
+Agents just extend this a bit further,
+
+181
+00:12:31,779 --> 00:12:35,779
+allowing LLMs to sequentially call tools in a loop.
+
+182
+00:12:35,779 --> 00:12:39,779
+Now, land graph sits underneath any workflow or agent,
+
+183
+00:12:39,779 --> 00:12:44,779
+and it provides a few specific benefits we're going to walk through now in code in some simple examples.
+
+184
+00:12:44,779 --> 00:12:46,779
+The first benefit is control.
+
+185
+00:12:46,779 --> 00:12:50,970
+It makes it very easy to define or combine ages and workflows.
+
+186
+00:12:50,970 --> 00:12:52,970
+The second benefit is persistence.
+
+187
+00:12:52,970 --> 00:12:55,970
+It provides a way to persist the state of our graph,
+
+188
+00:12:55,970 --> 00:12:59,970
+which enables both memory and human loop, which we're going to see.
+
+189
+00:12:59,970 --> 00:13:04,029
+And it provides an easy on-ramp for testing debugging and deploying applications.
+
+190
+00:13:04,029 --> 00:13:06,029
+Now let's talk about control first.
+
+191
+00:13:06,029 --> 00:13:09,029
+Land graph lets you define your applications a graph,
+
+192
+00:13:09,029 --> 00:13:13,029
+with three important things that you just specify.
+
+193
+00:13:13,029 --> 00:13:17,059
+The state or the information you want to track over the course of the application,
+
+194
+00:13:18,059 --> 00:13:22,059
+nodes, how do you want to update the state over the course of the application,
+
+195
+00:13:22,059 --> 00:13:26,509
+and edges, how do you want to connect the nodes together.
+
+196
+00:13:26,509 --> 00:13:29,509
+Now we use the state graph class to initialize a line graph graph,
+
+197
+00:13:29,509 --> 00:13:32,769
+and we just pass in a state object.
+
+198
+00:13:32,769 --> 00:13:37,769
+Now the state object is basically the schema for the information we want to track over the course of the application.
+
+199
+00:13:37,769 --> 00:13:41,500
+Now there's a few options for defining your schema.
+
+200
+00:13:41,500 --> 00:13:45,889
+As an example, type dicts are fast,
+
+201
+00:13:45,889 --> 00:13:49,019
+but they don't support default values.
+
+202
+00:13:49,019 --> 00:13:54,750
+Data classes are actually quite nice because they do support defaults.
+
+203
+00:13:54,750 --> 00:14:00,039
+Padantic is a bit slower, but allows for type validation.
+
+204
+00:14:00,039 --> 00:14:04,620
+So you can choose the schema that's appropriate for your application.
+
+205
+00:14:04,620 --> 00:14:06,620
+In this simple case, let's just use the type dict.
+
+206
+00:14:06,620 --> 00:14:09,620
+You can see I'm defining my state schema here.
+
+207
+00:14:09,620 --> 00:14:14,129
+It just has two keys, request, and email both strings.
+
+208
+00:14:14,129 --> 00:14:18,289
+I then initialize my state graph with my schema.
+
+209
+00:14:18,289 --> 00:14:21,860
+Now let's take what we did previously.
+
+210
+00:14:21,860 --> 00:14:24,860
+We call our model of tools with an input request.
+
+211
+00:14:24,860 --> 00:14:26,860
+We get the arguments, and we call it tool.
+
+212
+00:14:26,860 --> 00:14:29,860
+We can put that all in a node in our graph,
+
+213
+00:14:29,860 --> 00:14:32,860
+and you'll see two interesting things about this.
+
+214
+00:14:32,860 --> 00:14:36,860
+One, the node takes in our state object.
+
+215
+00:14:36,860 --> 00:14:39,860
+Remember, we define that above a natural sedictionary.
+
+216
+00:14:39,860 --> 00:14:43,860
+From the dictionary, we can extract any keys we want and utilize them.
+
+217
+00:14:43,860 --> 00:14:46,990
+Now the second thing is, it returns a dict.
+
+218
+00:14:46,990 --> 00:14:51,470
+This return is basically updating our state.
+
+219
+00:14:51,470 --> 00:14:55,470
+Now by default, when we return from a node,
+
+220
+00:14:55,470 --> 00:14:59,659
+it overwrites that particular key in our state,
+
+221
+00:14:59,659 --> 00:15:02,659
+but when we define our state object,
+
+222
+00:15:02,659 --> 00:15:05,659
+there are ways to customize it to do different things,
+
+223
+00:15:05,659 --> 00:15:09,080
+like appending, and we'll talk about that shortly.
+
+224
+00:15:09,080 --> 00:15:14,659
+In this simple case, though, we're going to call our model of tools.
+
+225
+00:15:14,659 --> 00:15:16,659
+It's going to produce a tool call.
+
+226
+00:15:16,659 --> 00:15:19,659
+We then pass those arguments to our right email tool.
+
+227
+00:15:19,659 --> 00:15:26,909
+We can email out, and we'll update or overwrite our state key email with that output.
+
+228
+00:15:26,909 --> 00:15:33,980
+Now we can specify the control flow by adding nodes and edges to our graph.
+
+229
+00:15:33,980 --> 00:15:37,039
+We'll add our single node, right email node,
+
+230
+00:15:37,039 --> 00:15:42,580
+and two edges to start, go to that node,
+
+231
+00:15:42,580 --> 00:15:47,649
+from that node, go to end, and finally, we compile it.
+
+232
+00:15:47,649 --> 00:15:51,649
+When we've done these things, we can very easily then run our graph
+
+233
+00:15:51,649 --> 00:15:56,649
+just by calling invoke, and we can pass an initial value to our state.
+
+234
+00:15:56,649 --> 00:16:01,649
+In this case, we'll initialize our graph with request,
+
+235
+00:16:01,649 --> 00:16:08,970
+and we see the output of the tool call is written to email in our state.
+
+236
+00:16:08,970 --> 00:16:11,970
+The state dict is just returned.
+
+237
+00:16:11,970 --> 00:16:14,320
+We run our graph.
+
+238
+00:16:14,320 --> 00:16:19,320
+Now in the above case, we very simply used edges to start,
+
+239
+00:16:19,320 --> 00:16:23,450
+go to our single node, and then go from our single node to end.
+
+240
+00:16:23,450 --> 00:16:27,450
+We can also do conditional routing using conditional edges.
+
+241
+00:16:27,450 --> 00:16:30,019
+Let me show an example of that.
+
+242
+00:16:30,019 --> 00:16:35,019
+Now let's split our graph up into two different nodes, call the LLM,
+
+243
+00:16:35,019 --> 00:16:37,309
+and run our tool.
+
+244
+00:16:37,309 --> 00:16:40,409
+Now we can add a conditional edge.
+
+245
+00:16:40,409 --> 00:16:45,409
+It looks to see if a tool call was made by call alone,
+
+246
+00:16:45,409 --> 00:16:49,789
+and if so, run the tool if not to send.
+
+247
+00:16:49,789 --> 00:16:52,789
+This is a very common thing that we do when we build agents.
+
+248
+00:16:52,789 --> 00:16:56,950
+We use conditional routing as a termination condition.
+
+249
+00:16:56,950 --> 00:16:59,950
+If the agent is making a tool call, we run it.
+
+250
+00:16:59,950 --> 00:17:02,950
+If not, we end and exit the agent loop.
+
+251
+00:17:02,950 --> 00:17:05,950
+This is a very useful thing to be aware of.
+
+252
+00:17:05,950 --> 00:17:08,950
+Now let's see something else that's interesting.
+
+253
+00:17:08,950 --> 00:17:13,109
+This time, I initialize my graph with messages state.
+
+254
+00:17:13,109 --> 00:17:16,109
+This is a prebuilt state object in line graph.
+
+255
+00:17:16,109 --> 00:17:18,109
+That is a single key messages.
+
+256
+00:17:18,109 --> 00:17:22,589
+And when we update it, as you see here,
+
+257
+00:17:22,589 --> 00:17:26,779
+it just simply depends to that list of messages
+
+258
+00:17:26,779 --> 00:17:28,779
+as opposed to overwriting.
+
+259
+00:17:28,779 --> 00:17:31,980
+Now this is also very useful when you're building agents
+
+260
+00:17:31,980 --> 00:17:34,980
+because you want to basically accumulate messages
+
+261
+00:17:34,980 --> 00:17:39,259
+over the course of the agent's tool calling trajectory.
+
+262
+00:17:39,259 --> 00:17:42,710
+And you'll see in this should continue edge.
+
+263
+00:17:42,710 --> 00:17:46,710
+All we do is we get the last message
+
+264
+00:17:46,710 --> 00:17:48,809
+from the list of messages.
+
+265
+00:17:48,809 --> 00:17:53,259
+We check if it's a tool call.
+
+266
+00:17:53,259 --> 00:17:58,259
+And if so, we return the name of the next node to go to run tool.
+
+267
+00:17:58,259 --> 00:18:00,259
+Otherwise, we end.
+
+268
+00:18:00,259 --> 00:18:02,609
+So you'll see an interesting difference.
+
+269
+00:18:03,609 --> 00:18:05,609
+With conditional edges,
+
+270
+00:18:05,609 --> 00:18:09,609
+you return the name of the next node you want to visit.
+
+271
+00:18:09,609 --> 00:18:11,769
+But with nodes,
+
+272
+00:18:11,769 --> 00:18:14,769
+you return updates to your state.
+
+273
+00:18:14,769 --> 00:18:17,769
+So we'll compile this and show the graph.
+
+274
+00:18:17,769 --> 00:18:20,769
+So now we start, we call our model.
+
+275
+00:18:20,769 --> 00:18:23,769
+And depending upon whether the model likes a tool call,
+
+276
+00:18:23,769 --> 00:18:25,769
+we'll run the tool or not.
+
+277
+00:18:25,769 --> 00:18:28,119
+Let's go ahead and try that out.
+
+278
+00:18:28,119 --> 00:18:29,119
+And there we go.
+
+279
+00:18:29,119 --> 00:18:32,119
+We pass our input message.
+
+280
+00:18:32,119 --> 00:18:34,180
+Our model makes a tool call.
+
+281
+00:18:34,180 --> 00:18:37,180
+We then route to the run tool node.
+
+282
+00:18:37,180 --> 00:18:40,250
+And the tool is run as we see here.
+
+283
+00:18:40,250 --> 00:18:43,250
+Now with just these local components,
+
+284
+00:18:43,250 --> 00:18:45,250
+you can build a lot of different things.
+
+285
+00:18:45,250 --> 00:18:48,470
+Now because agents are so common,
+
+286
+00:18:48,470 --> 00:18:50,470
+we have a pre-built abstraction for it,
+
+287
+00:18:50,470 --> 00:18:53,599
+which I show right here called create react agent.
+
+288
+00:18:53,599 --> 00:18:56,599
+Now to this, agent abstraction,
+
+289
+00:18:56,599 --> 00:18:59,599
+we just pass our model, our list of tools,
+
+290
+00:18:59,599 --> 00:19:01,599
+and a system prompt.
+
+291
+00:19:01,599 --> 00:19:03,599
+We run the agent just like before,
+
+292
+00:19:03,599 --> 00:19:05,599
+passing in messages.
+
+293
+00:19:05,599 --> 00:19:10,920
+And we can see that the model in this case makes a tool call.
+
+294
+00:19:10,920 --> 00:19:12,920
+The tool is run.
+
+295
+00:19:12,920 --> 00:19:14,920
+Now here's the little difference
+
+296
+00:19:14,920 --> 00:19:15,920
+relative that we saw before.
+
+297
+00:19:15,920 --> 00:19:18,920
+Remember before after tools run we just end.
+
+298
+00:19:18,920 --> 00:19:22,140
+With the agent though as discussed,
+
+299
+00:19:22,140 --> 00:19:25,140
+tool calls are returned back to the LLM.
+
+300
+00:19:25,140 --> 00:19:27,529
+So what happens is,
+
+301
+00:19:27,529 --> 00:19:29,529
+the model then sees that tool call
+
+302
+00:19:29,529 --> 00:19:34,619
+and provides us a response indicating the tools called
+
+303
+00:19:34,619 --> 00:19:37,750
+and does not call any further tools.
+
+304
+00:19:37,750 --> 00:19:41,359
+That then exits the tool calling loop
+
+305
+00:19:41,359 --> 00:19:43,460
+and the agent ends.
+
+306
+00:19:43,460 --> 00:19:46,710
+So now we've seen the basic components of LLM graph.
+
+307
+00:19:46,710 --> 00:19:49,869
+And we've introduced the agent abstraction to LLM graph.
+
+308
+00:19:49,869 --> 00:19:51,869
+Now in a very important thing when building agents
+
+309
+00:19:51,869 --> 00:19:54,869
+and workflows, as we're going to see a lot more later,
+
+310
+00:19:54,869 --> 00:19:56,869
+is the idea of persistence.
+
+311
+00:19:56,869 --> 00:19:58,970
+It can be very useful to allow agents
+
+312
+00:19:58,970 --> 00:20:02,160
+to pause during long-running tasks.
+
+313
+00:20:02,160 --> 00:20:04,160
+Minecraft has a built-in persistence layer
+
+314
+00:20:04,160 --> 00:20:07,259
+to enable this, implemented through check pointers.
+
+315
+00:20:07,259 --> 00:20:10,289
+Now what happens is, after every node,
+
+316
+00:20:10,289 --> 00:20:13,450
+the check pointer saves the state of the graph.
+
+317
+00:20:13,450 --> 00:20:15,450
+So if you pause your graph,
+
+318
+00:20:15,450 --> 00:20:17,450
+the state is saved and available
+
+319
+00:20:17,450 --> 00:20:19,450
+for resuming in a later point in time.
+
+320
+00:20:19,450 --> 00:20:21,450
+Now let's show an example of this.
+
+321
+00:20:21,450 --> 00:20:24,859
+I can take that same create react agent abstraction
+
+322
+00:20:24,859 --> 00:20:26,930
+and pass it a check pointer.
+
+323
+00:20:26,930 --> 00:20:30,220
+I'll ask something about good practices
+
+324
+00:20:30,220 --> 00:20:32,410
+for writing emails.
+
+325
+00:20:32,410 --> 00:20:33,410
+Now with a check pointer,
+
+326
+00:20:33,410 --> 00:20:36,410
+you'll see I need to now pass a thread ID.
+
+327
+00:20:36,410 --> 00:20:39,410
+This basically groups checkpoints together
+
+328
+00:20:39,410 --> 00:20:41,410
+so I can reference them later.
+
+329
+00:20:41,410 --> 00:20:42,410
+Our agent ran.
+
+330
+00:20:42,410 --> 00:20:44,440
+And what's really nice is,
+
+331
+00:20:44,440 --> 00:20:47,470
+we can get this current state of our agent
+
+332
+00:20:47,470 --> 00:20:50,470
+just by passing in the thread.
+
+333
+00:20:50,470 --> 00:20:53,700
+We'll call agent.getState.
+
+334
+00:20:53,700 --> 00:20:55,700
+And we can go ahead and extract
+
+335
+00:20:55,700 --> 00:20:58,700
+all the messages currently in state of our agent.
+
+336
+00:20:58,700 --> 00:21:00,700
+Now currently we see we just have our input
+
+337
+00:21:00,700 --> 00:21:05,200
+and we have the agent's response.
+
+338
+00:21:05,200 --> 00:21:08,519
+Now let's continue the conversation.
+
+339
+00:21:08,519 --> 00:21:11,650
+All I need to do is re-invoke my agent
+
+340
+00:21:11,650 --> 00:21:12,650
+and I'll say, hey great,
+
+341
+00:21:12,650 --> 00:21:14,650
+let's use lesson three,
+
+342
+00:21:14,650 --> 00:21:18,650
+be concise to craft a response to my boss
+
+343
+00:21:18,650 --> 00:21:21,779
+and I can just pass in the config.
+
+344
+00:21:21,779 --> 00:21:24,900
+That config indicates the thread.
+
+345
+00:21:24,900 --> 00:21:28,160
+If I can run, we can see the agent then
+
+346
+00:21:28,160 --> 00:21:32,319
+has access to the prior messages
+
+347
+00:21:32,319 --> 00:21:34,319
+because they're saved to the thread
+
+348
+00:21:34,319 --> 00:21:36,319
+and it proposes an email.
+
+349
+00:21:36,319 --> 00:21:39,799
+I can then follow up again
+
+350
+00:21:39,799 --> 00:21:41,799
+by passing in that thread ID
+
+351
+00:21:41,799 --> 00:21:43,799
+and say I like this.
+
+352
+00:21:43,799 --> 00:21:46,089
+Go ahead and write the email.
+
+353
+00:21:46,089 --> 00:21:48,089
+And now you can see it goes ahead,
+
+354
+00:21:48,089 --> 00:21:50,339
+calls the tool.
+
+355
+00:21:50,339 --> 00:21:52,339
+The tool is executed
+
+356
+00:21:52,339 --> 00:21:56,109
+and it confirms that the email has been sent.
+
+357
+00:21:56,109 --> 00:21:59,529
+Now another very powerful thing
+
+358
+00:21:59,529 --> 00:22:01,529
+that check pointing allows
+
+359
+00:22:01,529 --> 00:22:02,529
+is that we can interrupt our graph
+
+360
+00:22:02,529 --> 00:22:05,849
+at very specific points.
+
+361
+00:22:05,849 --> 00:22:07,849
+Here's an example of a very simple graph
+
+362
+00:22:07,849 --> 00:22:08,849
+where I want to interrupt
+
+363
+00:22:08,849 --> 00:22:10,849
+at a particular node human feedback
+
+364
+00:22:10,849 --> 00:22:14,069
+to collect feedback from the user.
+
+365
+00:22:14,069 --> 00:22:18,200
+All you do is add this interrupt object
+
+366
+00:22:18,200 --> 00:22:20,200
+to the node
+
+367
+00:22:20,200 --> 00:22:23,619
+and compile my graph with a checkpointer.
+
+368
+00:22:23,619 --> 00:22:26,000
+We can see our graph flow here.
+
+369
+00:22:26,000 --> 00:22:28,000
+We'll create a thread like before.
+
+370
+00:22:28,000 --> 00:22:30,000
+We'll run a graph.
+
+371
+00:22:30,000 --> 00:22:33,130
+Now I'll just simply stream updates
+
+372
+00:22:33,130 --> 00:22:35,130
+to each node as the graph is running
+
+373
+00:22:35,130 --> 00:22:38,130
+by indicating the stream mode updates.
+
+374
+00:22:38,130 --> 00:22:40,130
+Now it's interesting here
+
+375
+00:22:40,130 --> 00:22:43,130
+when we hit that human feedback node,
+
+376
+00:22:43,130 --> 00:22:46,130
+we can see the graph emits an interrupt.
+
+377
+00:22:46,130 --> 00:22:49,130
+With a value, please provide feedback
+
+378
+00:22:49,130 --> 00:22:51,130
+and that's exactly what we passed to
+
+379
+00:22:51,130 --> 00:22:53,420
+that interrupt object.
+
+380
+00:22:53,420 --> 00:22:54,420
+Now to resume,
+
+381
+00:22:54,420 --> 00:22:56,420
+all you need to do is use this command object
+
+382
+00:22:56,420 --> 00:22:58,420
+in the line graph
+
+383
+00:22:58,420 --> 00:23:01,420
+and pass in whatever human feedback I want.
+
+384
+00:23:01,420 --> 00:23:03,579
+Now to resume from the interrupt,
+
+385
+00:23:03,579 --> 00:23:05,579
+we just invoke our graph again
+
+386
+00:23:05,579 --> 00:23:06,579
+with the command object
+
+387
+00:23:06,579 --> 00:23:08,990
+and we pass resume.
+
+388
+00:23:08,990 --> 00:23:11,339
+We can simply pass a string
+
+389
+00:23:11,339 --> 00:23:13,339
+and our feedback gets passed through
+
+390
+00:23:13,339 --> 00:23:14,339
+to our node
+
+391
+00:23:14,339 --> 00:23:16,339
+and written to our state
+
+392
+00:23:16,339 --> 00:23:19,400
+as user feedback.
+
+393
+00:23:19,400 --> 00:23:20,400
+So whatever we pass
+
+394
+00:23:20,400 --> 00:23:22,460
+to this resume
+
+395
+00:23:22,460 --> 00:23:24,460
+and command after an interrupt
+
+396
+00:23:24,460 --> 00:23:27,910
+is directly passed into our graph.
+
+397
+00:23:27,910 --> 00:23:30,329
+And what we can see right here
+
+398
+00:23:30,329 --> 00:23:33,329
+is where we received that feedback,
+
+399
+00:23:33,329 --> 00:23:35,900
+run it to state.
+
+400
+00:23:35,900 --> 00:23:39,099
+Now because I set these two environment variables,
+
+401
+00:23:39,099 --> 00:23:41,130
+everything we just did
+
+402
+00:23:41,130 --> 00:23:43,130
+is logged to Langsmith.
+
+403
+00:23:43,130 --> 00:23:45,640
+I can then look at my Langsmith traces
+
+404
+00:23:45,640 --> 00:23:47,640
+for any of the above executions.
+
+405
+00:23:47,640 --> 00:23:51,019
+Here's an example looking at our agent
+
+406
+00:23:51,019 --> 00:23:53,019
+and we see here in Langsmith.
+
+407
+00:23:53,019 --> 00:23:55,089
+Here are graph nodes for our agent.
+
+408
+00:23:55,089 --> 00:23:57,309
+We can open this up.
+
+409
+00:23:57,309 --> 00:24:00,309
+This shows us the model call specifically.
+
+410
+00:24:00,309 --> 00:24:01,309
+Open that up.
+
+411
+00:24:01,309 --> 00:24:04,789
+And you can see here are the bound tools.
+
+412
+00:24:04,789 --> 00:24:08,079
+We actually called the right email tool right here.
+
+413
+00:24:08,079 --> 00:24:10,079
+Here is a list of messages,
+
+414
+00:24:10,079 --> 00:24:12,559
+the L and received.
+
+415
+00:24:12,559 --> 00:24:14,559
+And then here is the resulting tool call.
+
+416
+00:24:14,559 --> 00:24:16,779
+We then went to the tool node,
+
+417
+00:24:16,779 --> 00:24:17,779
+open that up,
+
+418
+00:24:17,779 --> 00:24:19,779
+and you can see here is the tool in vocation
+
+419
+00:24:19,779 --> 00:24:21,849
+and the output of our tool
+
+420
+00:24:21,849 --> 00:24:23,849
+as a tool message.
+
+421
+00:24:23,849 --> 00:24:26,329
+And finally, that went back to our agent.
+
+422
+00:24:26,329 --> 00:24:28,329
+We can see that call model,
+
+423
+00:24:28,329 --> 00:24:30,519
+node,
+
+424
+00:24:30,519 --> 00:24:32,519
+we can look at the L and call specifically,
+
+425
+00:24:32,519 --> 00:24:34,519
+see that node tools called
+
+426
+00:24:34,519 --> 00:24:37,519
+and a module response
+
+427
+00:24:37,519 --> 00:24:39,619
+with an IAM message saying
+
+428
+00:24:39,619 --> 00:24:41,940
+that email has been sent.
+
+429
+00:24:41,940 --> 00:24:44,940
+So Langsmith is very nice way to dig into your traces
+
+430
+00:24:44,940 --> 00:24:48,190
+and it also logs useful metadata for you
+
+431
+00:24:48,190 --> 00:24:50,190
+as you can see over here.
+
+432
+00:24:50,190 --> 00:24:52,349
+Now in addition to Langsmith,
+
+433
+00:24:52,349 --> 00:24:54,480
+I want to talk about another important
+
+434
+00:24:54,480 --> 00:24:57,480
+and useful feature in the Langtrain ecosystem
+
+435
+00:24:57,480 --> 00:25:00,700
+that allows us to deploy agents
+
+436
+00:25:00,700 --> 00:25:02,700
+or workflows very easily.
+
+437
+00:25:02,700 --> 00:25:04,700
+And that's called Langarth platform.
+
+438
+00:25:04,700 --> 00:25:07,279
+So everything we've done here in a notebook
+
+439
+00:25:07,279 --> 00:25:09,279
+is great for testing
+
+440
+00:25:09,279 --> 00:25:12,470
+and for rapid prototyping.
+
+441
+00:25:12,470 --> 00:25:14,470
+But what if I want to turn any of this code
+
+442
+00:25:14,470 --> 00:25:17,470
+into a deployable application?
+
+443
+00:25:17,470 --> 00:25:19,789
+That's where Langarth platform comes in.
+
+444
+00:25:19,789 --> 00:25:22,109
+It makes it very easy to go
+
+445
+00:25:22,109 --> 00:25:24,430
+from workflow agents to
+
+446
+00:25:25,430 --> 00:25:27,880
+a deployable server
+
+447
+00:25:27,880 --> 00:25:30,880
+with an API that we can use to interact with our graph.
+
+448
+00:25:30,880 --> 00:25:32,200
+In addition,
+
+449
+00:25:32,200 --> 00:25:34,200
+Langarth platform gives us
+
+450
+00:25:34,200 --> 00:25:36,200
+an interactive IDE called Langarth Studio.
+
+451
+00:25:36,200 --> 00:25:39,200
+It's a very useful way to further inspect
+
+452
+00:25:39,200 --> 00:25:41,460
+and debug our agent.
+
+453
+00:25:41,460 --> 00:25:43,809
+So to use Langarth platform,
+
+454
+00:25:43,809 --> 00:25:45,809
+all we need to do is ensure that our project
+
+455
+00:25:45,809 --> 00:25:48,059
+has a structure as shown here.
+
+456
+00:25:48,059 --> 00:25:50,059
+So the thing that really matters here
+
+457
+00:25:50,059 --> 00:25:52,160
+is this Langarth.json.
+
+458
+00:25:52,160 --> 00:25:54,160
+This is just a configuration file.
+
+459
+00:25:54,160 --> 00:25:56,319
+In the root of this repo,
+
+460
+00:25:56,319 --> 00:25:58,319
+this just specifies dependencies, graphs,
+
+461
+00:25:58,319 --> 00:25:59,319
+environment variables,
+
+462
+00:25:59,319 --> 00:26:01,319
+and other things needed to start
+
+463
+00:26:01,319 --> 00:26:03,319
+the Langarth server.
+
+464
+00:26:03,319 --> 00:26:05,319
+It's a pretty simple configuration.
+
+465
+00:26:05,319 --> 00:26:07,319
+The main thing the configuration will have
+
+466
+00:26:07,319 --> 00:26:10,349
+is just simply the graph names
+
+467
+00:26:10,349 --> 00:26:12,509
+and the path.
+
+468
+00:26:12,509 --> 00:26:13,509
+As an example,
+
+469
+00:26:13,509 --> 00:26:15,670
+in a repo,
+
+470
+00:26:15,670 --> 00:26:16,670
+in this directory,
+
+471
+00:26:16,670 --> 00:26:19,859
+we have a file called Langarth 101.py,
+
+472
+00:26:19,859 --> 00:26:21,859
+which contains some of the code
+
+473
+00:26:21,859 --> 00:26:24,410
+that we just prototyped in this notebook
+
+474
+00:26:24,410 --> 00:26:26,789
+as a deployable graph.
+
+475
+00:26:26,789 --> 00:26:27,789
+Now with Langarth platform,
+
+476
+00:26:27,789 --> 00:26:29,789
+there's a few different deployment options.
+
+477
+00:26:29,789 --> 00:26:31,890
+I want to make sure our clear.
+
+478
+00:26:31,890 --> 00:26:34,890
+So the simplest and free option is just local deployment
+
+479
+00:26:34,890 --> 00:26:36,890
+that runs on your local machine,
+
+480
+00:26:36,890 --> 00:26:38,890
+and all I need to do from the root of this directory
+
+481
+00:26:38,890 --> 00:26:41,210
+is run Langarth dev.
+
+482
+00:26:41,210 --> 00:26:43,210
+Now this still has persistence,
+
+483
+00:26:43,210 --> 00:26:46,529
+checkpoints should be written to the local file system.
+
+484
+00:26:46,529 --> 00:26:49,529
+Now they're also very self-hosted options for deployment,
+
+485
+00:26:49,529 --> 00:26:51,529
+and there's hosted deployments,
+
+486
+00:26:51,529 --> 00:26:53,750
+which use Postgres,
+
+487
+00:26:53,750 --> 00:26:55,069
+for persistence.
+
+488
+00:26:55,069 --> 00:26:57,069
+So we'll just run Langarth dev
+
+489
+00:26:57,069 --> 00:26:59,140
+from the root of our repo,
+
+490
+00:26:59,140 --> 00:27:00,140
+and see what happens.
+
+491
+00:27:00,140 --> 00:27:02,549
+So if we run Langarth dev,
+
+492
+00:27:02,549 --> 00:27:04,549
+you'll see this spin up in your browser.
+
+493
+00:27:04,549 --> 00:27:06,970
+This is Langarth Studio.
+
+494
+00:27:06,970 --> 00:27:08,970
+You can scroll through the various graphs
+
+495
+00:27:08,970 --> 00:27:10,970
+that are existence repo.
+
+496
+00:27:10,970 --> 00:27:13,289
+Click on Langarth 101.
+
+497
+00:27:13,289 --> 00:27:16,289
+This is one of the graphs we built in the notebook.
+
+498
+00:27:16,289 --> 00:27:18,670
+We can open up this input pane,
+
+499
+00:27:18,670 --> 00:27:19,670
+open up messages,
+
+500
+00:27:19,670 --> 00:27:20,670
+pass in a message,
+
+501
+00:27:20,670 --> 00:27:21,670
+submit,
+
+502
+00:27:21,670 --> 00:27:23,769
+and you can see the state of the graph
+
+503
+00:27:23,769 --> 00:27:25,900
+over here,
+
+504
+00:27:25,900 --> 00:27:27,900
+which shows each node in the graph,
+
+505
+00:27:27,900 --> 00:27:28,900
+as well as the state updates,
+
+506
+00:27:28,900 --> 00:27:31,119
+at that particular node.
+
+507
+00:27:31,119 --> 00:27:34,440
+You can also click on this open-run Langsmiths,
+
+508
+00:27:34,440 --> 00:27:38,019
+and look at the trace to see the LM call,
+
+509
+00:27:38,019 --> 00:27:39,019
+in the call LM node,
+
+510
+00:27:39,019 --> 00:27:42,019
+as well as the tool execution in the run tool node.
+
+511
+00:27:42,019 --> 00:27:45,039
+Now another nice thing I'll point out
+
+512
+00:27:45,039 --> 00:27:48,809
+is that you can see the API docs for your local deployment,
+
+513
+00:27:48,809 --> 00:27:49,809
+right here,
+
+514
+00:27:49,809 --> 00:27:52,420
+and you can browse through
+
+515
+00:27:52,420 --> 00:27:54,420
+to see all the endpoints available to you.
+
+516
+00:27:54,420 --> 00:27:56,420
+So we've covered many of the foundations needed
+
+517
+00:27:56,420 --> 00:27:58,480
+for this course.
+
+518
+00:27:58,480 --> 00:28:00,740
+We've covered Langchain
+
+519
+00:28:00,740 --> 00:28:01,740
+in some of the useful interfaces,
+
+520
+00:28:01,740 --> 00:28:03,740
+such as init chat model,
+
+521
+00:28:03,740 --> 00:28:05,059
+tools,
+
+522
+00:28:05,059 --> 00:28:07,150
+and using chat models.
+
+523
+00:28:07,150 --> 00:28:10,150
+We've talked about the basis of Langarth
+
+524
+00:28:10,150 --> 00:28:12,150
+and agents versus workflows.
+
+525
+00:28:12,150 --> 00:28:14,150
+We also showed both Langsmith,
+
+526
+00:28:14,150 --> 00:28:16,150
+as well as Langarth deployment
+
+527
+00:28:16,150 --> 00:28:18,150
+and Langarth Studio.
+
+528
+00:28:18,150 --> 00:28:20,150
+We covered persistence and interrupts.
+
+529
+00:28:20,150 --> 00:28:24,410
+We also covered Langsmith and observability,
+
+530
+00:28:24,410 --> 00:28:26,410
+as well as Langarth platform,
+
+531
+00:28:26,410 --> 00:28:28,410
+showcasing local deployments,
+
+532
+00:28:28,410 --> 00:28:30,569
+and Langarth Studio.
+
+533
+00:28:30,569 --> 00:28:31,569
+So these are really all the foundations
+
+534
+00:28:31,569 --> 00:28:34,569
+you're going to need for the rest of this course.

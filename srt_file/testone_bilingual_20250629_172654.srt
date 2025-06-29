@@ -1,0 +1,934 @@
+1
+00:00:00,000 --> 00:00:09,000
+Now that we've seen the fundamentals of Langgraf, I want to review the agent itself and how we're going to approach building it over the course of this class.
+了解了Langgraf的基础知识后，我想回顾一下智能体本身，以及我们将在本课程中如何构建它。
+
+2
+00:00:09,000 --> 00:00:15,000
+We're going to build an ambient agent that can run your email. It's going to have four main components.
+我们将构建一个可以处理电子邮件的环境智能体，它将有四个主要组件。
+
+3
+00:00:15,000 --> 00:00:20,000
+The first is the agent itself, which we're going to build first. You can see that in blue.
+第一个是智能体本身，我们将首先构建它。你可以在图中看到蓝色部分。
+
+4
+00:00:20,000 --> 00:00:27,000
+The second is actually testing it, which you see in orange.
+第二个是实际测试它，你可以在图中看到橙色部分。
+
+5
+00:00:27,000 --> 00:00:30,000
+We're going to show how to do that using Langsmith.
+我们将展示如何使用Langsmith来完成。
+
+6
+00:00:30,000 --> 00:00:38,000
+The third is adding human loop, and the fourth is adding memory to learn preferences over time.
+第三个是添加人工循环，第四个是添加记忆，以便随着时间的推移学习偏好。
+
+7
+00:00:38,000 --> 00:00:44,000
+Now for building the agent itself, we're going to use Langgraf as we've introduced,
+现在，为了构建智能体本身，我们将使用我们介绍过的Langgraf，
+
+8
+00:00:44,000 --> 00:00:55,000
+and we're going to showcase how you can combine an agent and specific workflow components, notably a router, together into a functioning system.
+我们将展示如何将智能体和特定的工作流组件，特别是路由器，组合成一个功能系统。
+
+9
+00:00:55,000 --> 00:01:01,000
+While building this, we're going to be making use of Langgraf Studio, as you saw previously as well.
+在构建过程中，我们将利用Langgraf Studio，正如你之前也看到的。
+
+10
+00:01:01,000 --> 00:01:09,000
+Now with this agent built, would you actually turn it on? And many people would probably say no. That's where testing comes in.
+现在，如果这个智能体构建好了，你会真的打开它吗？很多人可能会说不。这就是测试的用武之地。
+
+11
+00:01:09,000 --> 00:01:19,000
+This is a survey we put out last year, asking around 400 professionals, the major challenges associated with building and productionizing agents.
+这是我们去年发布的一项调查，
+
+12
+00:01:19,000 --> 00:01:24,000
+Many mentioned performance, quality, cost, safety, and latency.
+询问了大约400名专业人士，关于构建和生产代理的主要挑战。
+
+13
+00:01:24,000 --> 00:01:30,000
+For these reasons, testing to benchmark the performance of our agent is going to be very important.
+许多人提到了性能、质量、成本、安全性和延迟。
+
+14
+00:01:30,000 --> 00:01:35,000
+We'll show you to build datasets in Langsmith, we'll show how to build tests in Langsmith,
+因此，测试以衡量我们代理的性能将非常重要。
+
+15
+00:01:35,000 --> 00:01:40,000
+and we'll show we can use this to actually benchmark the performance of our agent.
+我们将向您展示如何在Langsmith中构建数据集，如何在Langsmith中构建测试，
+
+16
+00:01:40,000 --> 00:01:46,000
+For an agent like this is oversight over our email, the cost of error is very high.
+并展示如何利用这些来实际衡量我们代理的性能。
+
+17
+00:01:46,000 --> 00:01:50,000
+So we're going to show how to incorporate human loop with our agent.
+对于像这样监督我们电子邮件的代理，出错的成本非常高。
+
+18
+00:01:50,000 --> 00:01:56,000
+We'll add human loop to get particular sensitive actions, like certain tool calls.
+所以我们将展示如何将人工干预与我们的代理结合起来。
+
+19
+00:01:56,000 --> 00:02:01,000
+We'll show agent inbox as a lightweight UX for this.
+我们将添加人工干预，以处理特定的敏感操作，例如某些工具调用。
+
+20
+00:02:01,000 --> 00:02:14,000
+Our agent will simply send all notifications to inbox, or we can review, approve, or edit specific tool calls, like sending the email itself.
+我们将展示Agent Inbox作为一种轻量级的用户体验。
+
+21
+00:02:14,000 --> 00:02:21,000
+Based upon the feedback we give the agent in inbox, we're going to then update the agent's memory.
+根据我们在收件箱中给代理的反馈，我们将更新代理的记忆。
+
+22
+00:02:21,000 --> 00:02:24,000
+So it'll learn our preferences over time.
+这样它就会随着时间推移了解我们的偏好。
+
+23
+00:02:24,000 --> 00:02:27,000
+So here's a map of the various lessons.
+这是各种课程的地图。
+
+24
+00:02:27,000 --> 00:02:30,000
+We're going to start with building the email system.
+我们将从构建电子邮件系统开始。
+
+25
+00:02:30,000 --> 00:02:33,000
+We're then going to evaluate it using Langsmith.
+然后我们将使用Langsmith对其进行评估。
+
+26
+00:02:33,000 --> 00:02:40,000
+We'll then add human loop and show how to use agent inbox, and finally wild memory and deploy it.
+接着我们将添加人工循环并展示如何使用代理收件箱，最后是野外记忆并部署它。
+
+27
+00:02:40,000 --> 00:02:44,000
+So now let's walk through the code of actually building our agent.
+现在让我们来看看实际构建代理的代码。
+
+28
+00:02:44,000 --> 00:02:48,000
+And to motivate it, I'm going to show you the agent working in studio.
+为了激发大家的兴趣，我将向大家展示代理在工作室中的工作情况。
+
+29
+00:02:48,000 --> 00:02:50,000
+This is what we're going to build.
+这就是我们要构建的。
+
+30
+00:02:50,000 --> 00:02:55,000
+I can pass in an email, run, we'll triage the email accordingly.
+我可以传入一封电子邮件，运行，它会相应地分类电子邮件。
+
+31
+00:02:55,000 --> 00:03:03,000
+If triage determines that we should respond, our response agent will use its tools to respond appropriately.
+如果分诊系统认为我们应该回应，我们的响应代理将使用其工具做出适当回应。
+
+32
+00:03:03,000 --> 00:03:07,000
+We can follow, in this particular case, the input.
+在这个特定案例中，我们可以遵循输入。
+
+33
+00:03:08,000 --> 00:03:13,000
+The triage router decides to respond to the email.
+分诊路由器决定回复这封邮件。
+
+34
+00:03:13,000 --> 00:03:17,000
+It passes the email in messages to our agent.
+它将邮件作为消息传递给我们的代理。
+
+35
+00:03:17,000 --> 00:03:21,000
+Our agent then decides to make a tool call to write email.
+我们的代理随后决定调用工具来撰写邮件。
+
+36
+00:03:21,000 --> 00:03:24,000
+The tool call is executed.
+工具调用被执行。
+
+37
+00:03:24,000 --> 00:03:26,000
+And then we finish.
+然后我们完成。
+
+38
+00:03:26,000 --> 00:03:28,000
+So let's dive into the code now.
+现在我们深入代码。
+
+39
+00:03:28,000 --> 00:03:30,000
+And we're in this blue block right here.
+我们在这个蓝色方块里。
+
+40
+00:03:30,000 --> 00:03:33,000
+So that's what we're going to build out first.
+所以这是我们首先要构建的。
+
+41
+00:03:33,000 --> 00:03:36,000
+You've already seen how to define tools in Langchain.
+你已经了解了如何在 Langchain 中定义工具。
+
+42
+00:03:36,000 --> 00:03:40,000
+We're going to go ahead and define a few tools that are relevant for an email system,
+我们将定义一些与邮件系统相关的工具，
+
+43
+00:03:40,000 --> 00:03:44,000
+write email, schedule meeting, check calendar availability, and done.
+包括：写邮件、安排会议、查看日历空闲时间，以及完成。
+
+44
+00:03:44,000 --> 00:03:47,000
+Now, of course, these are just mock tools.
+当然，这些只是模拟工具。
+
+45
+00:03:47,000 --> 00:03:55,000
+We're not actually hitting a real email API for the purpose of this notebook and building out our assistant.
+为了本教程和构建助手，我们并没有真正调用邮件 API。
+
+46
+00:03:55,000 --> 00:04:01,000
+But the repo does have the option to connect it into as an example Gmail, if you want to.
+但如果你愿意，这个仓库确实提供了连接 Gmail 等示例的选项。
+
+47
+00:04:01,000 --> 00:04:05,000
+Now let's talk about the philosophy of building our assistant.
+现在，我们来谈谈构建助手的理念。
+
+48
+00:04:05,000 --> 00:04:09,000
+Remember, we talked about workflows in agents previously.
+记得我们之前讨论过代理中的工作流。
+
+49
+00:04:09,000 --> 00:04:14,000
+If we think about the control flow of our application for every incoming email,
+如果我们考虑应用程序的控制流，对于每一封收到的邮件，
+
+50
+00:04:14,000 --> 00:04:17,000
+we want to make some decision about it.
+我们都希望对其做出一些决策。
+
+51
+00:04:17,000 --> 00:04:21,000
+Do we respond, just notify the user or ignore it?
+我们是回复、通知用户还是忽略？
+
+52
+00:04:21,000 --> 00:04:30,000
+Because this step we always want to do first, we hard code this router as the first step in our overall assistant.
+因为我们总是想先执行这一步，所以我们将这个路由器硬编码为我们整个助手的第一个步骤。
+
+53
+00:04:30,000 --> 00:04:34,000
+And if the router decides to respond, we then send to an agent.
+如果路由器决定回复，我们就会发送给代理。
+
+54
+00:04:34,000 --> 00:04:36,000
+Now, why do you use an agent here?
+那么，你为什么在这里使用代理呢？
+
+55
+00:04:36,000 --> 00:04:41,000
+Well, for the email response task, it's a little bit more open ended.
+嗯，对于电子邮件回复任务，它有点开放。
+
+56
+00:04:41,000 --> 00:04:46,000
+The tools you want to call depend a bit on the content of the email itself.
+你想调用的工具取决于电子邮件本身的内容。
+
+57
+00:04:46,000 --> 00:04:50,000
+As an example, sometimes you might respond directly.
+例如，有时你可能会直接回复。
+
+58
+00:04:50,000 --> 00:04:53,000
+Other times you might schedule a meeting.
+其他时候你可能会安排会议。
+
+59
+00:04:53,000 --> 00:04:55,000
+Sometimes you might do both.
+有时你可能会两者都做。
+
+60
+00:04:55,000 --> 00:04:59,000
+And so the email response process is a bit more open ended.
+因此，电子邮件回复过程有点开放。
+
+61
+00:04:59,000 --> 00:05:01,000
+And in that case, we use an agent.
+这种情况下，我们会用到代理。
+
+62
+00:05:01,000 --> 00:05:07,000
+Now the nice thing is, we'll show how easy it is to compose these two things in LandGraph.
+接下来，我们会展示在LangGraph中组合这两者有多简单。
+
+63
+00:05:07,000 --> 00:05:10,000
+So let's build our router first.
+我们先来构建路由器。
+
+64
+00:05:10,000 --> 00:05:13,000
+The router handles the triage decision.
+路由器负责处理分类决策。
+
+65
+00:05:13,000 --> 00:05:15,000
+We'll define our state.
+我们来定义一下状态。
+
+66
+00:05:15,000 --> 00:05:17,000
+We introduced this previously.
+我们之前介绍过。
+
+67
+00:05:17,000 --> 00:05:22,000
+We'll just use messages state, which is that prebuilt state object in LandGraph.
+我们就用“messages”状态，它是LangGraph中预构建的状态对象。
+
+68
+00:05:22,000 --> 00:05:27,000
+And we'll add two new keys, email input and classification decision.
+我们会添加两个新键：“email input”和“classification decision”。
+
+69
+00:05:27,000 --> 00:05:34,000
+So our state object in total has three keys, messages, email input and classification decision.
+所以我们的状态对象总共有三个键：“messages”、“email input”和“classification decision”。
+
+70
+00:05:34,000 --> 00:05:37,000
+Now we're going to define the triage node.
+现在我们来定义分类节点。
+
+71
+00:05:37,000 --> 00:05:45,000
+I'm going to show a very simple but generally nice trick for doing things like routing using language models.
+我会展示一个非常简单但通用的技巧，
+
+72
+00:05:45,000 --> 00:05:49,000
+Many language models support structured outputs.
+用于使用语言模型进行路由等操作。
+
+73
+00:05:49,000 --> 00:05:53,000
+In fact, that's what's happening when we perform tool calling.
+许多语言模型都支持结构化输出。
+
+74
+00:05:53,000 --> 00:05:56,000
+But because this is so common,
+事实上，这就是我们进行工具调用时发生的事情。
+
+75
+00:05:56,000 --> 00:06:04,000
+our init chat model interface has a particular method with structured output where you can pass in a schema.
+但因为这很常见，我们的初始聊天模型接口有一个特定的方法，
+
+76
+00:06:04,000 --> 00:06:07,000
+The output will be coerced to adhere to that schema.
+带有结构化输出，你可以在其中传入一个模式。
+
+77
+00:06:07,000 --> 00:06:15,000
+Here's an example where we pass the pedantic model with two fields, reasoning and classification.
+输出将被强制符合该模式。
+
+78
+00:06:15,000 --> 00:06:18,000
+We provide descriptions of each field.
+这是一个例子，我们传入了一个带有两个字段的严谨模型，
+
+79
+00:06:18,000 --> 00:06:22,000
+And when we bind this schema to our model,
+分别是推理和分类。我们提供了每个字段的描述。
+
+80
+00:06:22,000 --> 00:06:30,000
+the model is aware of those descriptions and uses them to help coerce its output to meet this particular schema.
+当我们将此模式绑定到我们的模型时，模型会意识到这些描述，
+
+81
+00:06:30,000 --> 00:06:36,000
+So what we're doing here is we're telling the model to make a classification decision,
+我们要让模型做出分类决定，
+
+82
+00:06:36,000 --> 00:06:42,000
+select from these three options, ignore, respond or notify and give your reasoning.
+从这三个选项中选择：忽略、回复或通知，并给出理由。
+
+83
+00:06:42,000 --> 00:06:46,000
+Now as we saw previously, we can pass in the state.
+之前我们看到，我们可以传入状态。
+
+84
+00:06:46,000 --> 00:06:49,000
+This state's going to contain an email input.
+这个状态会包含一个电子邮件输入。
+
+85
+00:06:49,000 --> 00:06:58,000
+We'll just use some simple utils to parse it and format some prompts that we have defined in our repo,
+我们会用一些简单的工具来解析它，并格式化我们在仓库中定义的提示，
+
+86
+00:06:58,000 --> 00:07:00,000
+triaging the incoming email.
+用于分类传入的邮件。
+
+87
+00:07:00,000 --> 00:07:04,000
+We then invoke our router with a list of messages that contains our prompts.
+然后我们用包含提示的消息列表调用路由器。
+
+88
+00:07:04,000 --> 00:07:10,000
+And this output is going to be a structured object that adheres the schema that we passed.
+输出会是一个结构化的对象，符合我们传入的模式。
+
+89
+00:07:10,000 --> 00:07:14,000
+So we can extract the classification decision from that object.
+我们可以从该对象中提取分类决定。
+
+90
+00:07:14,000 --> 00:07:21,000
+If the classification is respond, we're going to go to the response agent.
+如果分类是“回复”，我们就会转到回复代理。
+
+91
+00:07:21,000 --> 00:07:30,000
+And we're going to update our messages state with the email so that the response agent knows what to respond to.
+我们将用邮件更新消息状态，
+
+92
+00:07:30,000 --> 00:07:38,000
+Now if the decision is to ignore or just notify the user, we go to end and nothing happens.
+这样响应代理就知道该回复什么了。
+
+93
+00:07:38,000 --> 00:07:42,000
+In all cases, we update state with the classification decision.
+如果决定忽略或只通知用户，我们会结束，什么都不会发生。
+
+94
+00:07:42,000 --> 00:07:44,000
+Now you'll see something interesting here.
+在所有情况下，我们都会用分类决策更新状态。
+
+95
+00:07:44,000 --> 00:07:47,000
+We return with this command object.
+现在你会看到一些有趣的东西。
+
+96
+00:07:47,000 --> 00:07:48,000
+So what's happening here?
+我们返回这个命令对象。
+
+97
+00:07:48,000 --> 00:07:54,000
+Before we talked about returning just with, for example, a dict to update our state,
+那么这里发生了什么？
+
+98
+00:07:54,000 --> 00:08:01,000
+command allows us to both update the state as we see here with this update,
+之前我们说过只返回一个字典来更新状态，
+
+99
+00:08:01,000 --> 00:08:05,000
+but also decide where to go next in our graph.
+命令允许我们像这里一样更新状态，
+
+100
+00:08:05,000 --> 00:08:10,000
+So it's a way of combining state updates and control flow in a single step.
+还可以决定下一步在图中去哪里。
+
+101
+00:08:10,000 --> 00:08:23,000
+So in this case, it just saves us a little bit of time because we don't have to specify all those edges from this particular node to end or response agent.
+这样能省点时间，因为我们不用指定从这个节点
+
+102
+00:08:23,000 --> 00:08:26,000
+Now here's where we'll build our agent.
+到末端或响应代理的所有边。
+
+103
+00:08:26,000 --> 00:08:30,000
+Now we already have some good intuition for building agents from before,
+现在我们要构建代理了。
+
+104
+00:08:30,000 --> 00:08:34,000
+but in this case, I'm going to try to build an agent with each node individually.
+之前我们已经对构建代理有了很好的直觉，
+
+105
+00:08:34,000 --> 00:08:39,000
+So you can kind of see what's under the hood of our create react agent abstraction.
+但这次，我将尝试逐个节点地构建代理。
+
+106
+00:08:39,000 --> 00:08:43,000
+So first we just pull in our agent prompt.
+这样你就能看到我们创建的反应代理抽象的内部原理了。
+
+107
+00:08:43,000 --> 00:08:50,000
+And this will just indicate the tools that the agent has available to it and our agent system prompt.
+首先，我们引入代理提示。
+
+108
+00:08:50,000 --> 00:08:55,000
+And this is where we just very simply define our instructions.
+这将指示代理可用的工具和代理系统提示。
+
+109
+00:08:55,000 --> 00:08:58,000
+Now we'll define the node that makes our LM call.
+在这里，我们非常简单地定义了指令。
+
+110
+00:08:58,000 --> 00:09:03,000
+In this case, we define the tools as a list.
+现在我们将定义进行语言模型调用的节点。
+
+111
+00:09:03,000 --> 00:09:05,000
+We bind them to our model.
+我们将它们绑定到模型。
+
+112
+00:09:05,000 --> 00:09:08,000
+We format our prompt,
+我们设置提示格式，
+
+113
+00:09:08,000 --> 00:09:13,000
+which includes tool descriptions as well as any background preferences.
+其中包括工具描述和任何背景偏好。
+
+114
+00:09:13,000 --> 00:09:16,000
+Updating our messages state with the LM output.
+用语言模型输出更新消息状态。
+
+115
+00:09:16,000 --> 00:09:19,000
+Now we define a node called tool handler,
+现在我们定义一个名为“工具处理程序”的节点，
+
+116
+00:09:19,000 --> 00:09:22,000
+which will be responsible for just executing the tool.
+它将负责执行工具。
+
+117
+00:09:22,000 --> 00:09:26,000
+Remember, we saw all these principles previously, so this is really nothing new.
+请记住，我们之前已经了解了所有这些原则，所以这真的没什么新意。
+
+118
+00:09:26,000 --> 00:09:30,000
+We'll go ahead and get all the tool calls from the prior message.
+我们将从之前的消息中获取所有工具调用。
+
+119
+00:09:30,000 --> 00:09:38,000
+We'll invoke it and we'll update our state with a tool message indicating the tool has been called.
+我们将调用它，并用一条工具消息更新我们的状态，表明工具已被调用。
+
+120
+00:09:38,000 --> 00:09:41,000
+Now here we'll add some simple conditional routing,
+现在我们在这里添加一些简单的条件路由，
+
+121
+00:09:41,000 --> 00:09:47,000
+which basically says continue calling tools until the done tool is called.
+基本上就是说，继续调用工具，直到调用了“完成”工具。
+
+122
+00:09:47,000 --> 00:09:54,000
+Remember before we use the termination condition as no tool call has been executed.
+记住，之前我们使用“没有工具调用被执行”作为终止条件。
+
+123
+00:09:54,000 --> 00:10:00,000
+In this case, a specific tool done is our termination condition.
+在这种情况下，一个特定的“完成”工具是我们的终止条件。
+
+124
+00:10:00,000 --> 00:10:06,000
+This is just another way to set up agents with an alternative termination condition.
+这只是设置代理的另一种方式，使用替代的终止条件。
+
+125
+00:10:06,000 --> 00:10:09,000
+Now we can lay out our agent graph.
+现在我们可以布置我们的代理图。
+
+126
+00:10:09,000 --> 00:10:11,000
+This is very simple.
+这非常简单。
+
+127
+00:10:11,000 --> 00:10:13,000
+We add our LM node.
+我们添加我们的LM节点。
+
+128
+00:10:13,000 --> 00:10:15,000
+We add our tool handler node.
+我们添加我们的工具处理程序节点。
+
+129
+00:10:15,000 --> 00:10:21,000
+We add our conditional edge to decide whether or not to continue based upon the tool called.
+我们添加我们的条件边，根据调用的工具决定是否继续。
+
+130
+00:10:21,000 --> 00:10:27,000
+And we can see what's going to happen is the LM will run,
+我们可以看到将要发生的是LM将运行，
+
+131
+00:10:27,000 --> 00:10:31,000
+it will call a tool because we enforce tool calling,
+它会调用一个工具，因为我们强制它调用工具，
+
+132
+00:10:31,000 --> 00:10:37,000
+and it will continue calling tools until it calls the done tool, at which point it'll exit.
+它会持续调用工具，直到调用“完成”工具，然后退出。
+
+133
+00:10:37,000 --> 00:10:43,000
+Now a very nice thing about Langrath is you can easily compose different things.
+LangGraph 的一个优点是，你可以轻松组合不同的东西。
+
+134
+00:10:43,000 --> 00:10:47,000
+Remember we previously defined our triage router.
+记得我们之前定义了分类路由器。
+
+135
+00:10:47,000 --> 00:10:52,000
+We can add the triage router as a node to this larger workflow
+我们可以将分类路由器作为一个节点添加到这个更大的工作流中，
+
+136
+00:10:52,000 --> 00:10:58,000
+and add our response agent, which we defined here, as a node.
+并将我们在这里定义的响应代理作为一个节点添加。
+
+137
+00:10:58,000 --> 00:11:04,000
+This effectively means that the agent is a subgraph of our overall workflow.
+这实际上意味着代理是我们整个工作流的一个子图。
+
+138
+00:11:04,000 --> 00:11:12,000
+We'll add a start edge to initiate the triage router and we'll compile our graph.
+我们将添加一个起始边来启动分类路由器，然后编译我们的图。
+
+139
+00:11:12,000 --> 00:11:16,000
+So now you can see we go to the triage router.
+所以现在你可以看到我们进入了分类路由器。
+
+140
+00:11:16,000 --> 00:11:19,000
+Depending on the decision made by the triage router,
+根据分类路由器做出的决定，
+
+141
+00:11:19,000 --> 00:11:26,000
+we may go to the response agent, which will handle the email response, and then we'll end.
+我们会把邮件交给响应代理，由它来处理邮件回复，然后就结束了。
+
+142
+00:11:26,000 --> 00:11:29,000
+Now let's test running it.
+现在我们来测试运行一下。
+
+143
+00:11:29,000 --> 00:11:36,000
+In this case you can see the classification decision is just notify and nothing else happens.
+在这个例子中，你可以看到分类决定只是通知，没有其他操作。
+
+144
+00:11:36,000 --> 00:11:42,000
+Now let's try with an email for which we're expected to respond.
+现在我们来试试一封需要回复的邮件。
+
+145
+00:11:42,000 --> 00:11:44,000
+The decision is to respond.
+决定是回复。
+
+146
+00:11:44,000 --> 00:11:47,000
+Now to see something interesting.
+现在来看看一些有趣的东西。
+
+147
+00:11:47,000 --> 00:11:51,000
+The initial message is the email.
+初始消息就是这封邮件。
+
+148
+00:11:51,000 --> 00:11:55,000
+With this appended respond to this email.
+后面附加了“回复这封邮件”。
+
+149
+00:11:55,000 --> 00:11:57,000
+Where did that happen?
+这是怎么发生的？
+
+150
+00:11:57,000 --> 00:12:01,000
+Remember that was actually done up in the triage router.
+记住，这实际上是在分流路由器中完成的。
+
+151
+00:12:01,000 --> 00:12:08,000
+If the triage router makes a decision to respond, all we need to do is update the state of our graph
+如果分诊路由器决定响应，我们只需更新图的状态
+
+152
+00:12:08,000 --> 00:12:12,000
+with an initial message saying respond to this email.
+并附上初始消息，写上“回复这封邮件”。
+
+153
+00:12:12,000 --> 00:12:16,000
+The agent subgraph used that messages key.
+代理子图使用了消息键。
+
+154
+00:12:16,000 --> 00:12:22,000
+So it received then that message from the router and could in turn respond to it.
+所以它从路由器那里收到了消息，并能反过来响应它。
+
+155
+00:12:22,000 --> 00:12:25,000
+That's the beauty of using this state object.
+这就是使用状态对象的好处。
+
+156
+00:12:25,000 --> 00:12:33,000
+It's passed between the nodes of your graph and our router can communicate with our agent very simply through state.
+它在图的节点之间传递，我们的路由器可以通过状态非常简单地与代理通信。
+
+157
+00:12:33,000 --> 00:12:39,000
+And we can see a call email tool is done and we end.
+我们可以看到“调用邮件工具”已完成，然后结束。
+
+158
+00:12:39,000 --> 00:12:41,000
+Now just to bookend this.
+现在，为了首尾呼应。
+
+159
+00:12:41,000 --> 00:12:44,000
+Remember we ran land graph dev.
+记住我们运行了“land graph dev”。
+
+160
+00:12:44,000 --> 00:12:47,000
+To start a local deployment.
+来启动本地部署。
+
+161
+00:12:47,000 --> 00:12:51,000
+Which allows us to use land graph studio to interact with our agent.
+这样我们就能用LangGraph Studio
+
+162
+00:12:51,000 --> 00:12:54,000
+So here's what you'll see when you open studio.
+和我们的智能体交互了。
+
+163
+00:12:54,000 --> 00:12:58,000
+Again, you can just select various agents from your drop down list.
+这就是你打开Studio后看到的界面。
+
+164
+00:12:58,000 --> 00:13:00,000
+Go to email system.
+你可以从下拉列表中选择不同的智能体。
+
+165
+00:13:00,000 --> 00:13:04,000
+Here is the graph we actually just built in the notebook.
+进入邮件系统。
+
+166
+00:13:04,000 --> 00:13:12,000
+Now what you can do is open this up and you can see our agent subgraph inside here.
+这就是我们刚才在Notebook中构建的图。
+
+167
+00:13:12,000 --> 00:13:14,000
+Pass an email.
+现在你可以打开它，看到里面的智能体子图。
+
+168
+00:13:14,000 --> 00:13:16,000
+The router classifies it.
+传入一封邮件。
+
+169
+00:13:16,000 --> 00:13:19,000
+The response agent handles it and we finish.
+路由器对其进行分类。
+
+170
+00:13:19,000 --> 00:13:24,000
+So this reproduces what we saw in the notebook, but in a nice visual environment.
+响应智能体处理它，然后结束。
+
+171
+00:13:24,000 --> 00:13:28,000
+And you can inspect each step if you'd like.
+你可以查看每一步。
+
+172
+00:13:28,000 --> 00:13:31,000
+And the state updates made.
+以及状态更新。
+
+173
+00:13:31,000 --> 00:13:34,000
+You can see we finally go to done.
+最终我们完成了。
+
+174
+00:13:34,000 --> 00:13:38,000
+And as mentioned before, you can click open run Lang Smith.
+如前所述，你可以点击“打开运行LangSmith”。
+
+175
+00:13:38,000 --> 00:13:40,000
+And we can now view the trace.
+现在我们可以查看跟踪。
+
+176
+00:13:40,000 --> 00:13:42,000
+We can see here's our triage router.
+我们可以看到这是我们的分类路由器。
+
+177
+00:13:42,000 --> 00:13:45,000
+This is the triage decision.
+这是分类决策。
+
+178
+00:13:45,000 --> 00:13:48,000
+You can look at all the prompts used.
+你可以查看所有使用的提示。
+
+179
+00:13:48,000 --> 00:13:51,000
+And then you can look at the agent itself.
+然后你可以查看代理本身。
+
+180
+00:13:51,000 --> 00:13:55,000
+The agent made a tool call to write email.
+代理调用了工具来编写邮件。
+
+181
+00:13:55,000 --> 00:13:59,000
+And then it called the done tool to end.
+然后它调用“完成”工具来结束。
+
+182
+00:13:59,000 --> 00:14:04,000
+So now you've seen how to build an agent from scratch.
+现在你已经学会了如何从头开始构建一个智能体。
+
+183
+00:14:04,000 --> 00:14:08,000
+How to connect it in a workflow to a router.
+如何在工作流中将其连接到路由器。
+
+184
+00:14:08,000 --> 00:14:10,000
+How to run it.
+如何运行它。
+
+185
+00:14:10,000 --> 00:14:13,000
+And how to visualize it in studio.
+以及如何在Studio中可视化它。
+
+186
+00:14:13,000 --> 00:14:17,000
+So now we can build from here to evaluate it.
+现在我们可以以此为基础进行评估。
+
+187
+00:14:17,000 --> 00:14:21,000
+Add human loop and then finally add memory.
+添加人工循环，最后添加记忆。

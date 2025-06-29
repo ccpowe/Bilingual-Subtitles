@@ -13,6 +13,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
 import time
+from dotenv import load_dotenv
+load_dotenv()
 
 # 配置日志
 logging.basicConfig(
@@ -102,7 +104,7 @@ class AudioToSubtitlePipeline:
             import gc
             
             # 创建输出目录
-            output_dir = Path("str_file")
+            output_dir = Path("srt_file")
             output_dir.mkdir(exist_ok=True)
             
             # 生成输出文件名
