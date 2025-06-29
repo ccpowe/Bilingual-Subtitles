@@ -1,0 +1,61 @@
+{
+  "default": {
+    "font_size": 20,
+    "font_color": "white",
+    "outline_color": "black",
+    "position": "bottom_center",
+    "margin_v": 20,
+    "description": "默认白色字幕，黑色边框，适合大多数场景"
+  },
+  "cinema": {
+    "font_size": 20,
+    "font_color": "yellow",
+    "outline_color": "black",
+    "position": "bottom_center",
+    "margin_v": 30,
+    "max_line_length": 50,
+    "description": "电影院风格黄色字幕，适中字体，防止遮挡"
+  },
+  "simple": {
+    "font_size": 18,
+    "font_color": "white",
+    "outline_color": "none",
+    "position": "bottom_center",
+    "margin_v": 15,
+    "description": "简洁白色字幕，无边框，清爽简约"
+  },
+  "elegant": {
+    "font_size": 22,
+    "font_color": "#F0F0F0",
+    "outline_color": "#2C2C2C",
+    "position": "bottom_center",
+    "margin_v": 30,
+    "description": "优雅浅灰色字幕，深灰边框，专业视觉效果"
+  },
+  "bright": {
+    "font_size": 20,
+    "font_color": "#00FFFF",
+    "outline_color": "black",
+    "position": "bottom_center",
+    "margin_v": 20,
+    "description": "青色字幕，适合深色背景视频"
+  },
+  "compact": {
+    "font_size": 16,
+    "font_color": "white",
+    "outline_color": "black",
+    "position": "bottom_center",
+    "margin_v": 40,
+    "max_line_length": 60,
+    "description": "紧凑样式，适合长字幕，小字体防遮挡"
+  },
+  "dual_line": {
+    "font_size": 14,
+    "font_color": "white",
+    "outline_color": "black",
+    "position": "bottom_center",
+    "margin_v": 20,
+    "background": "semi_transparent",
+    "description": "双行样式，小字体，更靠下位置，半透明背景"
+  }
+} 

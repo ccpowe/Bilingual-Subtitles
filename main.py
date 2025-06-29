@@ -48,7 +48,7 @@ class AudioToSubtitlePipeline:
         logger.info("🔍 验证配置...")
         
         # 检查输入文件
-        if self.config['mode'] in ['full', 'transcribe']:
+        if self.config['mode'] in ['full', 'transcribe', 'full-embed']:
             input_file = self.config['input']
             if not os.path.exists(input_file):
                 logger.error(f"❌ 输入文件不存在: {input_file}")
@@ -59,8 +59,28 @@ class AudioToSubtitlePipeline:
             if not any(input_file.lower().endswith(ext) for ext in valid_extensions):
                 logger.warning(f"⚠️ 文件格式可能不支持: {input_file}")
         
+        # 检查视频文件（用于字幕嵌入）
+        if self.config['mode'] in ['embed', 'full-embed']:
+            input_file = self.config['input']
+            if not os.path.exists(input_file):
+                logger.error(f"❌ 输入视频文件不存在: {input_file}")
+                return False
+                
+            # 检查是否为视频文件
+            video_extensions = ['.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv']
+            if not any(input_file.lower().endswith(ext) for ext in video_extensions):
+                logger.warning(f"⚠️ 输入文件可能不是视频格式: {input_file}")
+            
+            # 检查字幕嵌入器依赖
+            try:
+                from video_subtitle_embedder import VideoSubtitleEmbedder
+                logger.debug("✅ 字幕嵌入器模块可用")
+            except ImportError:
+                logger.error("❌ 字幕嵌入模块导入失败")
+                return False
+        
         # 检查翻译配置
-        if self.config['mode'] in ['full', 'translate']:
+        if self.config['mode'] in ['full', 'translate', 'full-embed']:
             api_key = self.config.get('api_key') or os.getenv("OPENAI_API_KEY")
             if not api_key:
                 logger.error("❌ 翻译功能需要设置OPENAI_API_KEY环境变量")
@@ -68,11 +88,11 @@ class AudioToSubtitlePipeline:
         
         # 检查依赖
         try:
-            if self.config['mode'] in ['full', 'transcribe']:
+            if self.config['mode'] in ['full', 'transcribe', 'full-embed']:
                 import faster_whisper
                 logger.debug("✅ faster-whisper 已安装")
             
-            if self.config['mode'] in ['full', 'translate']:
+            if self.config['mode'] in ['full', 'translate', 'full-embed']:
                 import langgraph
                 import langchain_openai
                 logger.debug("✅ 翻译依赖已安装")
@@ -246,6 +266,92 @@ class AudioToSubtitlePipeline:
             logger.error(f"❌ 翻译失败: {e}")
             return None
     
+    def embed_subtitle_to_video(self, video_file: str, srt_file: str) -> Optional[str]:
+        """
+        嵌入字幕到视频
+        
+        Args:
+            video_file: 视频文件路径
+            srt_file: 字幕文件路径
+            
+        Returns:
+            str: 输出视频文件路径，失败返回None
+        """
+        logger.info(f"🎬 开始嵌入字幕到视频: {os.path.basename(video_file)}")
+        
+        try:
+            # 动态导入嵌入器模块
+            from video_subtitle_embedder import VideoSubtitleEmbedder
+            
+            # 创建嵌入器
+            embedder = VideoSubtitleEmbedder(processor=self.config.get('processor', 'auto'))
+            
+            # 嵌入字幕
+            output_file = embedder.embed_subtitle(
+                video_file=video_file,
+                srt_file=srt_file,
+                embed_type=self.config.get('embed_type', 'soft'),
+                style_preset=self.config.get('style_preset', 'default')
+            )
+            
+            logger.info(f"✅ 字幕嵌入完成!")
+            logger.info(f"📁 输出视频: {output_file}")
+            
+            return output_file
+            
+        except Exception as e:
+            logger.error(f"❌ 字幕嵌入失败: {e}")
+            return None
+    
+    def find_subtitle_file(self, video_file: str, subtitle_choice: str) -> Optional[str]:
+        """
+        查找对应的字幕文件
+        
+        Args:
+            video_file: 视频文件路径
+            subtitle_choice: 字幕类型选择 ('original', 'translation', 'bilingual')
+            
+        Returns:
+            str: 字幕文件路径，未找到返回None
+        """
+        video_path = Path(video_file)
+        srt_dir = Path("srt_file")
+        
+        if not srt_dir.exists():
+            logger.warning("⚠️ srt_file 目录不存在")
+            return None
+        
+        # 搜索模式：按优先级查找
+        search_patterns = []
+        
+        if subtitle_choice == 'bilingual':
+            search_patterns = [
+                f"{video_path.stem}_bilingual_*.srt",
+                f"{video_path.stem}_*.srt"
+            ]
+        elif subtitle_choice == 'translation':
+            search_patterns = [
+                f"{video_path.stem}_translation_*.srt",
+                f"{video_path.stem}_bilingual_*.srt"
+            ]
+        elif subtitle_choice == 'original':
+            search_patterns = [
+                f"{video_path.stem}_[0-9]*.srt",  # 原始转录文件
+                f"{video_path.stem}.srt"
+            ]
+        
+        # 按优先级搜索文件
+        for pattern in search_patterns:
+            matching_files = list(srt_dir.glob(pattern))
+            if matching_files:
+                # 如果有多个文件，选择最新的
+                latest_file = max(matching_files, key=os.path.getmtime)
+                logger.info(f"📁 找到字幕文件: {latest_file.name}")
+                return str(latest_file)
+        
+        logger.warning(f"⚠️ 未找到 {subtitle_choice} 类型的字幕文件")
+        return None
+    
     def run_full_pipeline(self) -> bool:
         """运行完整流水线"""
         logger.info("🚀 启动完整工作流: 音频 → SRT → 双语字幕")
@@ -285,6 +391,73 @@ class AudioToSubtitlePipeline:
         bilingual_file = self.translate_srt(srt_file)
         return bilingual_file is not None
     
+    def run_embed_only(self) -> bool:
+        """仅运行字幕嵌入"""
+        logger.info("🎬 启动字幕嵌入模式: 视频 + SRT → 带字幕视频")
+        
+        video_file = self.config['input']
+        
+        # 获取字幕文件
+        if self.config.get('srt_file'):
+            # 用户指定了字幕文件
+            srt_file = self.config['srt_file']
+            if not os.path.exists(srt_file):
+                logger.error(f"❌ 指定的字幕文件不存在: {srt_file}")
+                return False
+        else:
+            # 自动查找字幕文件
+            srt_file = self.find_subtitle_file(video_file, self.config.get('subtitle_choice', 'bilingual'))
+            if not srt_file:
+                logger.error("❌ 未找到对应的字幕文件")
+                return False
+        
+        # 嵌入字幕
+        output_file = self.embed_subtitle_to_video(video_file, srt_file)
+        return output_file is not None
+    
+    def run_full_embed_pipeline(self) -> bool:
+        """运行完整工作流+字幕嵌入"""
+        logger.info("🚀 启动完整工作流+字幕嵌入: 音频 → SRT → 双语字幕 → 带字幕视频")
+        
+        start_time = time.time()
+        video_file = self.config['input']
+        
+        # 步骤1: 音频转录
+        srt_file = self.transcribe_audio(video_file)
+        if not srt_file:
+            return False
+        
+        # 步骤2: 翻译字幕
+        bilingual_file = self.translate_srt(srt_file)
+        if not bilingual_file:
+            logger.warning("⚠️ 翻译失败，将使用原始字幕")
+            bilingual_file = srt_file
+        
+        # 步骤3: 选择要嵌入的字幕
+        subtitle_choice = self.config.get('subtitle_choice', 'bilingual')
+        if subtitle_choice == 'bilingual' and bilingual_file != srt_file:
+            embed_srt = bilingual_file
+        elif subtitle_choice == 'original':
+            embed_srt = srt_file
+        else:
+            # 尝试查找指定类型的字幕
+            found_srt = self.find_subtitle_file(video_file, subtitle_choice)
+            embed_srt = found_srt if found_srt else bilingual_file
+        
+        # 步骤4: 嵌入字幕到视频
+        output_video = self.embed_subtitle_to_video(video_file, embed_srt)
+        if not output_video:
+            return False
+        
+        # 完成
+        elapsed = time.time() - start_time
+        logger.info(f"🎉 完整工作流+字幕嵌入完成! 耗时: {elapsed:.1f}秒")
+        logger.info(f"📁 原始字幕: {srt_file}")
+        logger.info(f"📁 双语字幕: {bilingual_file}")
+        logger.info(f"📁 输出视频: {output_video}")
+        
+        return True
+    
     def run(self) -> bool:
         """运行流水线"""
         if not self.validate_config():
@@ -300,6 +473,10 @@ class AudioToSubtitlePipeline:
                 return self.run_transcribe_only()
             elif self.config['mode'] == 'translate':
                 return self.run_translate_only()
+            elif self.config['mode'] == 'embed':
+                return self.run_embed_only()
+            elif self.config['mode'] == 'full-embed':
+                return self.run_full_embed_pipeline()
             else:
                 logger.error(f"❌ 未知运行模式: {self.config['mode']}")
                 return False
@@ -329,23 +506,25 @@ def main():
   full        完整工作流 (音频 → SRT → 双语字幕)
   transcribe  仅音频转录 (音频 → SRT)
   translate   仅字幕翻译 (SRT → 双语字幕)
+  embed       仅字幕嵌入 (视频 + SRT → 带字幕视频)
+  full-embed  完整工作流+嵌入 (音频 → SRT → 双语字幕 → 带字幕视频)
 
 示例:
   # 完整工作流
-  uv run python main.py video.mp4 --mode full -l en -s 英文 -t 中文
+  uv run main.py video.mp4 --mode full -l en -s 英文 -t 中文
   
-  # 仅转录
-  uv run python main.py video.mp4 --mode transcribe -l en
+  # 完整工作流+字幕嵌入
+  uv run main.py video.mp4 --mode full-embed -l en -s 英文 -t 中文 --subtitle-choice bilingual
   
-  # 仅翻译
-  uv run python main.py subtitle.srt --mode translate -s 英文 -t 中文
+  # 仅嵌入字幕
+  uv run main.py video.mp4 --mode embed --subtitle-choice bilingual --srt-file subtitle.srt
         """,
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
     # 基础参数
     parser.add_argument('input', help='输入文件路径 (音频/视频/SRT)')
-    parser.add_argument('--mode', choices=['full', 'transcribe', 'translate'], 
+    parser.add_argument('--mode', choices=['full', 'transcribe', 'translate', 'embed', 'full-embed'], 
                        default='full', help='运行模式 (默认: full)')
     
     # 音频转录参数
@@ -374,6 +553,26 @@ def main():
     translate_group.add_argument('-b', '--batch-size', type=int, default=5,
                        help='翻译批量大小 (默认: 5)')
     
+    # 字幕嵌入参数
+    embed_group = parser.add_argument_group('字幕嵌入参数')
+    embed_group.add_argument('--subtitle-choice', 
+                            choices=['original', 'translation', 'bilingual'],
+                            default='bilingual',
+                            help='选择嵌入的字幕类型 (默认: bilingual)')
+    embed_group.add_argument('--embed-type',
+                            choices=['soft', 'hard'],
+                            default='soft',
+                            help='字幕嵌入方式 (默认: soft)')
+    embed_group.add_argument('--style-preset',
+                            default='default',
+                            help='字幕样式预设 (默认: default)')
+    embed_group.add_argument('--processor',
+                            choices=['auto', 'ffmpeg', 'moviepy'],
+                            default='auto',
+                            help='视频处理器选择 (默认: auto)')
+    embed_group.add_argument('--srt-file',
+                            help='指定字幕文件路径 (embed模式使用)')
+    
     # 控制参数
     control_group = parser.add_argument_group('控制参数')
     control_group.add_argument('-v', '--verbose', action='store_true',
@@ -400,13 +599,18 @@ def main():
         'api_key': args.api_key,
         'base_url': args.base_url,
         'batch_size': args.batch_size,
+        'subtitle_choice': args.subtitle_choice,
+        'embed_type': args.embed_type,
+        'style_preset': args.style_preset,
+        'processor': args.processor,
+        'srt_file': args.srt_file,
         'verbose': args.verbose,
         'quiet': args.quiet,
         'dry_run': args.dry_run
     }
     
     # 自动配置处理
-    if args.auto_config and args.mode in ['full', 'transcribe']:
+    if args.auto_config and args.mode in ['full', 'transcribe', 'full-embed']:
         logger.info("🔧 启用自动配置...")
         try:
             import psutil
@@ -438,14 +642,14 @@ def main():
     print(f"📁 输入文件: {config['input']}")
     print(f"🔧 运行模式: {config['mode']}")
     
-    if config['mode'] in ['full', 'transcribe']:
+    if config['mode'] in ['full', 'transcribe', 'full-embed']:
         print(f"\n🎵 转录配置:")
         print(f"   模型: {config['whisper_model']}")
         print(f"   语言: {config['language'] or '自动检测'}")
         print(f"   精度: {config['compute_type']}")
         print(f"   线程: {config['cpu_threads']}")
     
-    if config['mode'] in ['full', 'translate']:
+    if config['mode'] in ['full', 'translate', 'full-embed']:
         print(f"\n🌐 翻译配置:")
         print(f"   {config['source_lang']} → {config['target_lang']}")
         print(f"   模型: {config['llm_model'] or os.getenv('MODEL_NAME') or 'gpt-4o-mini'}")
@@ -456,6 +660,15 @@ def main():
         base_url = config['base_url'] or os.getenv("MODEL_BASE_URL")
         print(f"   API: {'✅' if api_key else '❌'}")
         print(f"   代理: {'✅' if base_url else '⚪'}")
+    
+    if config['mode'] in ['embed', 'full-embed']:
+        print(f"\n🎬 字幕嵌入配置:")
+        print(f"   字幕类型: {config['subtitle_choice']}")
+        print(f"   嵌入方式: {config['embed_type']}")
+        print(f"   样式预设: {config['style_preset']}")
+        print(f"   处理器: {config['processor']}")
+        if config['srt_file']:
+            print(f"   指定字幕: {config['srt_file']}")
     
     print("="*60)
     
