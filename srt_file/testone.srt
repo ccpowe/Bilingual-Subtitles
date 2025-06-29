@@ -1,0 +1,747 @@
+1
+00:00:00,000 --> 00:00:09,000
+Now that we've seen the fundamentals of Langgraf, I want to review the agent itself and how we're going to approach building it over the course of this class.
+
+2
+00:00:09,000 --> 00:00:15,000
+We're going to build an ambient agent that can run your email. It's going to have four main components.
+
+3
+00:00:15,000 --> 00:00:20,000
+The first is the agent itself, which we're going to build first. You can see that in blue.
+
+4
+00:00:20,000 --> 00:00:27,000
+The second is actually testing it, which you see in orange.
+
+5
+00:00:27,000 --> 00:00:30,000
+We're going to show how to do that using Langsmith.
+
+6
+00:00:30,000 --> 00:00:38,000
+The third is adding human loop, and the fourth is adding memory to learn preferences over time.
+
+7
+00:00:38,000 --> 00:00:44,000
+Now for building the agent itself, we're going to use Langgraf as we've introduced,
+
+8
+00:00:44,000 --> 00:00:55,000
+and we're going to showcase how you can combine an agent and specific workflow components, notably a router, together into a functioning system.
+
+9
+00:00:55,000 --> 00:01:01,000
+While building this, we're going to be making use of Langgraf Studio, as you saw previously as well.
+
+10
+00:01:01,000 --> 00:01:09,000
+Now with this agent built, would you actually turn it on? And many people would probably say no. That's where testing comes in.
+
+11
+00:01:09,000 --> 00:01:19,000
+This is a survey we put out last year, asking around 400 professionals, the major challenges associated with building and productionizing agents.
+
+12
+00:01:19,000 --> 00:01:24,000
+Many mentioned performance, quality, cost, safety, and latency.
+
+13
+00:01:24,000 --> 00:01:30,000
+For these reasons, testing to benchmark the performance of our agent is going to be very important.
+
+14
+00:01:30,000 --> 00:01:35,000
+We'll show you to build datasets in Langsmith, we'll show how to build tests in Langsmith,
+
+15
+00:01:35,000 --> 00:01:40,000
+and we'll show we can use this to actually benchmark the performance of our agent.
+
+16
+00:01:40,000 --> 00:01:46,000
+For an agent like this is oversight over our email, the cost of error is very high.
+
+17
+00:01:46,000 --> 00:01:50,000
+So we're going to show how to incorporate human loop with our agent.
+
+18
+00:01:50,000 --> 00:01:56,000
+We'll add human loop to get particular sensitive actions, like certain tool calls.
+
+19
+00:01:56,000 --> 00:02:01,000
+We'll show agent inbox as a lightweight UX for this.
+
+20
+00:02:01,000 --> 00:02:14,000
+Our agent will simply send all notifications to inbox, or we can review, approve, or edit specific tool calls, like sending the email itself.
+
+21
+00:02:14,000 --> 00:02:21,000
+Based upon the feedback we give the agent in inbox, we're going to then update the agent's memory.
+
+22
+00:02:21,000 --> 00:02:24,000
+So it'll learn our preferences over time.
+
+23
+00:02:24,000 --> 00:02:27,000
+So here's a map of the various lessons.
+
+24
+00:02:27,000 --> 00:02:30,000
+We're going to start with building the email system.
+
+25
+00:02:30,000 --> 00:02:33,000
+We're then going to evaluate it using Langsmith.
+
+26
+00:02:33,000 --> 00:02:40,000
+We'll then add human loop and show how to use agent inbox, and finally wild memory and deploy it.
+
+27
+00:02:40,000 --> 00:02:44,000
+So now let's walk through the code of actually building our agent.
+
+28
+00:02:44,000 --> 00:02:48,000
+And to motivate it, I'm going to show you the agent working in studio.
+
+29
+00:02:48,000 --> 00:02:50,000
+This is what we're going to build.
+
+30
+00:02:50,000 --> 00:02:55,000
+I can pass in an email, run, we'll triage the email accordingly.
+
+31
+00:02:55,000 --> 00:03:03,000
+If triage determines that we should respond, our response agent will use its tools to respond appropriately.
+
+32
+00:03:03,000 --> 00:03:07,000
+We can follow, in this particular case, the input.
+
+33
+00:03:08,000 --> 00:03:13,000
+The triage router decides to respond to the email.
+
+34
+00:03:13,000 --> 00:03:17,000
+It passes the email in messages to our agent.
+
+35
+00:03:17,000 --> 00:03:21,000
+Our agent then decides to make a tool call to write email.
+
+36
+00:03:21,000 --> 00:03:24,000
+The tool call is executed.
+
+37
+00:03:24,000 --> 00:03:26,000
+And then we finish.
+
+38
+00:03:26,000 --> 00:03:28,000
+So let's dive into the code now.
+
+39
+00:03:28,000 --> 00:03:30,000
+And we're in this blue block right here.
+
+40
+00:03:30,000 --> 00:03:33,000
+So that's what we're going to build out first.
+
+41
+00:03:33,000 --> 00:03:36,000
+You've already seen how to define tools in Langchain.
+
+42
+00:03:36,000 --> 00:03:40,000
+We're going to go ahead and define a few tools that are relevant for an email system,
+
+43
+00:03:40,000 --> 00:03:44,000
+write email, schedule meeting, check calendar availability, and done.
+
+44
+00:03:44,000 --> 00:03:47,000
+Now, of course, these are just mock tools.
+
+45
+00:03:47,000 --> 00:03:55,000
+We're not actually hitting a real email API for the purpose of this notebook and building out our assistant.
+
+46
+00:03:55,000 --> 00:04:01,000
+But the repo does have the option to connect it into as an example Gmail, if you want to.
+
+47
+00:04:01,000 --> 00:04:05,000
+Now let's talk about the philosophy of building our assistant.
+
+48
+00:04:05,000 --> 00:04:09,000
+Remember, we talked about workflows in agents previously.
+
+49
+00:04:09,000 --> 00:04:14,000
+If we think about the control flow of our application for every incoming email,
+
+50
+00:04:14,000 --> 00:04:17,000
+we want to make some decision about it.
+
+51
+00:04:17,000 --> 00:04:21,000
+Do we respond, just notify the user or ignore it?
+
+52
+00:04:21,000 --> 00:04:30,000
+Because this step we always want to do first, we hard code this router as the first step in our overall assistant.
+
+53
+00:04:30,000 --> 00:04:34,000
+And if the router decides to respond, we then send to an agent.
+
+54
+00:04:34,000 --> 00:04:36,000
+Now, why do you use an agent here?
+
+55
+00:04:36,000 --> 00:04:41,000
+Well, for the email response task, it's a little bit more open ended.
+
+56
+00:04:41,000 --> 00:04:46,000
+The tools you want to call depend a bit on the content of the email itself.
+
+57
+00:04:46,000 --> 00:04:50,000
+As an example, sometimes you might respond directly.
+
+58
+00:04:50,000 --> 00:04:53,000
+Other times you might schedule a meeting.
+
+59
+00:04:53,000 --> 00:04:55,000
+Sometimes you might do both.
+
+60
+00:04:55,000 --> 00:04:59,000
+And so the email response process is a bit more open ended.
+
+61
+00:04:59,000 --> 00:05:01,000
+And in that case, we use an agent.
+
+62
+00:05:01,000 --> 00:05:07,000
+Now the nice thing is, we'll show how easy it is to compose these two things in LandGraph.
+
+63
+00:05:07,000 --> 00:05:10,000
+So let's build our router first.
+
+64
+00:05:10,000 --> 00:05:13,000
+The router handles the triage decision.
+
+65
+00:05:13,000 --> 00:05:15,000
+We'll define our state.
+
+66
+00:05:15,000 --> 00:05:17,000
+We introduced this previously.
+
+67
+00:05:17,000 --> 00:05:22,000
+We'll just use messages state, which is that prebuilt state object in LandGraph.
+
+68
+00:05:22,000 --> 00:05:27,000
+And we'll add two new keys, email input and classification decision.
+
+69
+00:05:27,000 --> 00:05:34,000
+So our state object in total has three keys, messages, email input and classification decision.
+
+70
+00:05:34,000 --> 00:05:37,000
+Now we're going to define the triage node.
+
+71
+00:05:37,000 --> 00:05:45,000
+I'm going to show a very simple but generally nice trick for doing things like routing using language models.
+
+72
+00:05:45,000 --> 00:05:49,000
+Many language models support structured outputs.
+
+73
+00:05:49,000 --> 00:05:53,000
+In fact, that's what's happening when we perform tool calling.
+
+74
+00:05:53,000 --> 00:05:56,000
+But because this is so common,
+
+75
+00:05:56,000 --> 00:06:04,000
+our init chat model interface has a particular method with structured output where you can pass in a schema.
+
+76
+00:06:04,000 --> 00:06:07,000
+The output will be coerced to adhere to that schema.
+
+77
+00:06:07,000 --> 00:06:15,000
+Here's an example where we pass the pedantic model with two fields, reasoning and classification.
+
+78
+00:06:15,000 --> 00:06:18,000
+We provide descriptions of each field.
+
+79
+00:06:18,000 --> 00:06:22,000
+And when we bind this schema to our model,
+
+80
+00:06:22,000 --> 00:06:30,000
+the model is aware of those descriptions and uses them to help coerce its output to meet this particular schema.
+
+81
+00:06:30,000 --> 00:06:36,000
+So what we're doing here is we're telling the model to make a classification decision,
+
+82
+00:06:36,000 --> 00:06:42,000
+select from these three options, ignore, respond or notify and give your reasoning.
+
+83
+00:06:42,000 --> 00:06:46,000
+Now as we saw previously, we can pass in the state.
+
+84
+00:06:46,000 --> 00:06:49,000
+This state's going to contain an email input.
+
+85
+00:06:49,000 --> 00:06:58,000
+We'll just use some simple utils to parse it and format some prompts that we have defined in our repo,
+
+86
+00:06:58,000 --> 00:07:00,000
+triaging the incoming email.
+
+87
+00:07:00,000 --> 00:07:04,000
+We then invoke our router with a list of messages that contains our prompts.
+
+88
+00:07:04,000 --> 00:07:10,000
+And this output is going to be a structured object that adheres the schema that we passed.
+
+89
+00:07:10,000 --> 00:07:14,000
+So we can extract the classification decision from that object.
+
+90
+00:07:14,000 --> 00:07:21,000
+If the classification is respond, we're going to go to the response agent.
+
+91
+00:07:21,000 --> 00:07:30,000
+And we're going to update our messages state with the email so that the response agent knows what to respond to.
+
+92
+00:07:30,000 --> 00:07:38,000
+Now if the decision is to ignore or just notify the user, we go to end and nothing happens.
+
+93
+00:07:38,000 --> 00:07:42,000
+In all cases, we update state with the classification decision.
+
+94
+00:07:42,000 --> 00:07:44,000
+Now you'll see something interesting here.
+
+95
+00:07:44,000 --> 00:07:47,000
+We return with this command object.
+
+96
+00:07:47,000 --> 00:07:48,000
+So what's happening here?
+
+97
+00:07:48,000 --> 00:07:54,000
+Before we talked about returning just with, for example, a dict to update our state,
+
+98
+00:07:54,000 --> 00:08:01,000
+command allows us to both update the state as we see here with this update,
+
+99
+00:08:01,000 --> 00:08:05,000
+but also decide where to go next in our graph.
+
+100
+00:08:05,000 --> 00:08:10,000
+So it's a way of combining state updates and control flow in a single step.
+
+101
+00:08:10,000 --> 00:08:23,000
+So in this case, it just saves us a little bit of time because we don't have to specify all those edges from this particular node to end or response agent.
+
+102
+00:08:23,000 --> 00:08:26,000
+Now here's where we'll build our agent.
+
+103
+00:08:26,000 --> 00:08:30,000
+Now we already have some good intuition for building agents from before,
+
+104
+00:08:30,000 --> 00:08:34,000
+but in this case, I'm going to try to build an agent with each node individually.
+
+105
+00:08:34,000 --> 00:08:39,000
+So you can kind of see what's under the hood of our create react agent abstraction.
+
+106
+00:08:39,000 --> 00:08:43,000
+So first we just pull in our agent prompt.
+
+107
+00:08:43,000 --> 00:08:50,000
+And this will just indicate the tools that the agent has available to it and our agent system prompt.
+
+108
+00:08:50,000 --> 00:08:55,000
+And this is where we just very simply define our instructions.
+
+109
+00:08:55,000 --> 00:08:58,000
+Now we'll define the node that makes our LM call.
+
+110
+00:08:58,000 --> 00:09:03,000
+In this case, we define the tools as a list.
+
+111
+00:09:03,000 --> 00:09:05,000
+We bind them to our model.
+
+112
+00:09:05,000 --> 00:09:08,000
+We format our prompt,
+
+113
+00:09:08,000 --> 00:09:13,000
+which includes tool descriptions as well as any background preferences.
+
+114
+00:09:13,000 --> 00:09:16,000
+Updating our messages state with the LM output.
+
+115
+00:09:16,000 --> 00:09:19,000
+Now we define a node called tool handler,
+
+116
+00:09:19,000 --> 00:09:22,000
+which will be responsible for just executing the tool.
+
+117
+00:09:22,000 --> 00:09:26,000
+Remember, we saw all these principles previously, so this is really nothing new.
+
+118
+00:09:26,000 --> 00:09:30,000
+We'll go ahead and get all the tool calls from the prior message.
+
+119
+00:09:30,000 --> 00:09:38,000
+We'll invoke it and we'll update our state with a tool message indicating the tool has been called.
+
+120
+00:09:38,000 --> 00:09:41,000
+Now here we'll add some simple conditional routing,
+
+121
+00:09:41,000 --> 00:09:47,000
+which basically says continue calling tools until the done tool is called.
+
+122
+00:09:47,000 --> 00:09:54,000
+Remember before we use the termination condition as no tool call has been executed.
+
+123
+00:09:54,000 --> 00:10:00,000
+In this case, a specific tool done is our termination condition.
+
+124
+00:10:00,000 --> 00:10:06,000
+This is just another way to set up agents with an alternative termination condition.
+
+125
+00:10:06,000 --> 00:10:09,000
+Now we can lay out our agent graph.
+
+126
+00:10:09,000 --> 00:10:11,000
+This is very simple.
+
+127
+00:10:11,000 --> 00:10:13,000
+We add our LM node.
+
+128
+00:10:13,000 --> 00:10:15,000
+We add our tool handler node.
+
+129
+00:10:15,000 --> 00:10:21,000
+We add our conditional edge to decide whether or not to continue based upon the tool called.
+
+130
+00:10:21,000 --> 00:10:27,000
+And we can see what's going to happen is the LM will run,
+
+131
+00:10:27,000 --> 00:10:31,000
+it will call a tool because we enforce tool calling,
+
+132
+00:10:31,000 --> 00:10:37,000
+and it will continue calling tools until it calls the done tool, at which point it'll exit.
+
+133
+00:10:37,000 --> 00:10:43,000
+Now a very nice thing about Langrath is you can easily compose different things.
+
+134
+00:10:43,000 --> 00:10:47,000
+Remember we previously defined our triage router.
+
+135
+00:10:47,000 --> 00:10:52,000
+We can add the triage router as a node to this larger workflow
+
+136
+00:10:52,000 --> 00:10:58,000
+and add our response agent, which we defined here, as a node.
+
+137
+00:10:58,000 --> 00:11:04,000
+This effectively means that the agent is a subgraph of our overall workflow.
+
+138
+00:11:04,000 --> 00:11:12,000
+We'll add a start edge to initiate the triage router and we'll compile our graph.
+
+139
+00:11:12,000 --> 00:11:16,000
+So now you can see we go to the triage router.
+
+140
+00:11:16,000 --> 00:11:19,000
+Depending on the decision made by the triage router,
+
+141
+00:11:19,000 --> 00:11:26,000
+we may go to the response agent, which will handle the email response, and then we'll end.
+
+142
+00:11:26,000 --> 00:11:29,000
+Now let's test running it.
+
+143
+00:11:29,000 --> 00:11:36,000
+In this case you can see the classification decision is just notify and nothing else happens.
+
+144
+00:11:36,000 --> 00:11:42,000
+Now let's try with an email for which we're expected to respond.
+
+145
+00:11:42,000 --> 00:11:44,000
+The decision is to respond.
+
+146
+00:11:44,000 --> 00:11:47,000
+Now to see something interesting.
+
+147
+00:11:47,000 --> 00:11:51,000
+The initial message is the email.
+
+148
+00:11:51,000 --> 00:11:55,000
+With this appended respond to this email.
+
+149
+00:11:55,000 --> 00:11:57,000
+Where did that happen?
+
+150
+00:11:57,000 --> 00:12:01,000
+Remember that was actually done up in the triage router.
+
+151
+00:12:01,000 --> 00:12:08,000
+If the triage router makes a decision to respond, all we need to do is update the state of our graph
+
+152
+00:12:08,000 --> 00:12:12,000
+with an initial message saying respond to this email.
+
+153
+00:12:12,000 --> 00:12:16,000
+The agent subgraph used that messages key.
+
+154
+00:12:16,000 --> 00:12:22,000
+So it received then that message from the router and could in turn respond to it.
+
+155
+00:12:22,000 --> 00:12:25,000
+That's the beauty of using this state object.
+
+156
+00:12:25,000 --> 00:12:33,000
+It's passed between the nodes of your graph and our router can communicate with our agent very simply through state.
+
+157
+00:12:33,000 --> 00:12:39,000
+And we can see a call email tool is done and we end.
+
+158
+00:12:39,000 --> 00:12:41,000
+Now just to bookend this.
+
+159
+00:12:41,000 --> 00:12:44,000
+Remember we ran land graph dev.
+
+160
+00:12:44,000 --> 00:12:47,000
+To start a local deployment.
+
+161
+00:12:47,000 --> 00:12:51,000
+Which allows us to use land graph studio to interact with our agent.
+
+162
+00:12:51,000 --> 00:12:54,000
+So here's what you'll see when you open studio.
+
+163
+00:12:54,000 --> 00:12:58,000
+Again, you can just select various agents from your drop down list.
+
+164
+00:12:58,000 --> 00:13:00,000
+Go to email system.
+
+165
+00:13:00,000 --> 00:13:04,000
+Here is the graph we actually just built in the notebook.
+
+166
+00:13:04,000 --> 00:13:12,000
+Now what you can do is open this up and you can see our agent subgraph inside here.
+
+167
+00:13:12,000 --> 00:13:14,000
+Pass an email.
+
+168
+00:13:14,000 --> 00:13:16,000
+The router classifies it.
+
+169
+00:13:16,000 --> 00:13:19,000
+The response agent handles it and we finish.
+
+170
+00:13:19,000 --> 00:13:24,000
+So this reproduces what we saw in the notebook, but in a nice visual environment.
+
+171
+00:13:24,000 --> 00:13:28,000
+And you can inspect each step if you'd like.
+
+172
+00:13:28,000 --> 00:13:31,000
+And the state updates made.
+
+173
+00:13:31,000 --> 00:13:34,000
+You can see we finally go to done.
+
+174
+00:13:34,000 --> 00:13:38,000
+And as mentioned before, you can click open run Lang Smith.
+
+175
+00:13:38,000 --> 00:13:40,000
+And we can now view the trace.
+
+176
+00:13:40,000 --> 00:13:42,000
+We can see here's our triage router.
+
+177
+00:13:42,000 --> 00:13:45,000
+This is the triage decision.
+
+178
+00:13:45,000 --> 00:13:48,000
+You can look at all the prompts used.
+
+179
+00:13:48,000 --> 00:13:51,000
+And then you can look at the agent itself.
+
+180
+00:13:51,000 --> 00:13:55,000
+The agent made a tool call to write email.
+
+181
+00:13:55,000 --> 00:13:59,000
+And then it called the done tool to end.
+
+182
+00:13:59,000 --> 00:14:04,000
+So now you've seen how to build an agent from scratch.
+
+183
+00:14:04,000 --> 00:14:08,000
+How to connect it in a workflow to a router.
+
+184
+00:14:08,000 --> 00:14:10,000
+How to run it.
+
+185
+00:14:10,000 --> 00:14:13,000
+And how to visualize it in studio.
+
+186
+00:14:13,000 --> 00:14:17,000
+So now we can build from here to evaluate it.
+
+187
+00:14:17,000 --> 00:14:21,000
+Add human loop and then finally add memory.
